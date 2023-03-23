@@ -272,7 +272,7 @@ class mod_booking_mod_form extends moodleform_mod {
             'location' => get_string("location", "booking"),
             'coursestarttime' => get_string("coursestarttime", "booking"),
             'city' => new lang_string('city'),
-            'department'  => new lang_string('department'),
+            'department' => new lang_string('department'),
             'courseendtime' => get_string("courseendtime", "booking"),
             'numrec' => get_string("numrec", "booking"), 'userid' => get_string("userid", "booking"),
             'username' => get_string("username"), 'firstname' => get_string("firstname"),
@@ -315,12 +315,12 @@ class mod_booking_mod_form extends moodleform_mod {
             'description' => new lang_string('description'),
             'city' => new lang_string('city'),
             'country' => new lang_string('country'),
-            'idnumber'    => new lang_string('idnumber'),
-            'email'       => new lang_string('email'),
-            'phone1'      => new lang_string('phone1'),
-            'department'  => new lang_string('department'),
-            'address'  => new lang_string('address'),
-            'role'  => new lang_string('role'),
+            'idnumber' => new lang_string('idnumber'),
+            'email' => new lang_string('email'),
+            'phone1' => new lang_string('phone1'),
+            'department' => new lang_string('department'),
+            'address' => new lang_string('address'),
+            'role' => new lang_string('role'),
         );
 
         for ($i = 1; $i < 4; $i++) {
@@ -520,7 +520,7 @@ class mod_booking_mod_form extends moodleform_mod {
             'format' => FORMAT_HTML);
         $default['text'] = str_replace("\n", '<br/>', $default['text']);
         $mform->setDefault('bookedtext', $default);
-        $mform->addHelpButton('bookedtext', 'bookedtext', 'mod_booking');
+        $mform->addHelpButton('bookedtext', 'placeholders', 'mod_booking');
         $mform->disabledIf('bookedtext', 'mailtemplatessource', 'eq', 1);
 
         $mform->addElement('editor', 'waitingtext', get_string('waitingtext', 'booking'), null,
@@ -530,7 +530,7 @@ class mod_booking_mod_form extends moodleform_mod {
             'format' => FORMAT_HTML);
         $default['text'] = str_replace("\n", '<br/>', $default['text']);
         $mform->setDefault('waitingtext', $default);
-        $mform->addHelpButton('waitingtext', 'waitingtext', 'mod_booking');
+        $mform->addHelpButton('waitingtext', 'placeholders', 'mod_booking');
         $mform->disabledIf('waitingtext', 'mailtemplatessource', 'eq', 1);
 
         $mform->addElement('editor', 'notifyemail', get_string('notifyemail', 'booking'), null,
@@ -643,15 +643,16 @@ class mod_booking_mod_form extends moodleform_mod {
                 null);
         $mform->setType('bookingpolicy', PARAM_CLEANHTML);
 
-        $mform->addElement('selectyesno', 'cancancelbook', get_string("cancancelbook", "booking"));
+        $mform->addElement('selectyesno', 'allowupdate', get_string('allowbookingafterstart', 'mod_booking'));
 
-        $mform->addElement('selectyesno', 'allowupdate', get_string("allowdelete", "booking"));
-        $opts = array(0 => get_string('cancancelbookdaysno', 'mod_booking'));
+        $mform->addElement('selectyesno', 'cancancelbook', get_string('cancancelmyself', 'mod_booking'));
+
+        $opts = array(10000 => get_string('cancancelbookdaysno', 'mod_booking'));
         $extraopts = array_combine(range(-100, 100), range(-100, 100));
         $opts = $opts + $extraopts;
         $mform->addElement('select', 'allowupdatedays', get_string('cancancelbookdays', 'mod_booking'), $opts);
-        $mform->setDefault('allowupdatedays', 0);
-        $mform->disabledIf('allowupdatedays', 'allowupdate', 'eq', 0);
+        $mform->setDefault('allowupdatedays', 10000); // One million means "no limit".
+        $mform->disabledIf('allowupdatedays', 'cancancelbook', 'eq', 0);
 
         $mform->addElement('selectyesno', 'autoenrol', get_string('autoenrol', 'booking'));
         $mform->setDefault('autoenrol', 1);

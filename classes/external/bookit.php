@@ -55,9 +55,9 @@ class bookit extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(array(
-            'area'  => new external_value(PARAM_RAW, 'area'),
-            'itemid'  => new external_value(PARAM_INT, 'itemid'),
-            'userid'  => new external_value(PARAM_INT, 'userid'),
+            'area' => new external_value(PARAM_RAW, 'area'),
+            'itemid' => new external_value(PARAM_INT, 'itemid'),
+            'userid' => new external_value(PARAM_INT, 'userid'),
             )
         );
     }
@@ -97,7 +97,7 @@ class bookit extends external_api {
             ];
         }
 
-        list ($templates, $data) = booking_bookit::render_bookit_template_data($settings, $userid);
+        list ($templates, $data) = booking_bookit::render_bookit_template_data($settings, $userid, false);
 
         return [
             'status' => $status,

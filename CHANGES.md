@@ -1,3 +1,93 @@
+## Version 8.0.5 (2023032100)
+**Improvements:**
+* Improvement: Differentiate between checkout and booking complete confirmation in header.
+* Improvement: the $booking->get_pagination_setting() method introduced to get number of booking options per page for rendering.
+
+**Bugfixes:**
+* Bugfix: Add missing isset checks.
+* Bugfix: Mustache's HTML validation fixes and little github styling.
+
+**Testing:**
+* Test: 2 behat scenarios have been added for testing settings.
+* Test: 2 behat scenarios have been added for testing navigation - paging and filtering.
+
+## Version 8.0.4 (2023032000)
+**Improvements:**
+* Improvement: Hide activity header on view confirmation page and show menu in full width.
+* Improvement: Remove duration from bookingoption_description and put image into paragraph.
+* Improvement: Remove unused attribute defaultdownloadformat.
+
+**Bugfixes:**
+* Bugfix: Fixed broken send reminder mails task.
+* Bugfix: Remove wrong login function.
+
+## Version 8.0.3 (2023031600)
+**New features:**
+* New feature: New placeholder {profilepicture} to add user profile picture to confirmation mails.
+
+**Improvements:**
+* Improvement: Added and updated behat tests.
+* Improvement: Link to teachers page on report.php instead of user profile.
+
+**Bugfixes:**
+* Bugfix: Fix broken confirm activity functionality.
+* Bugfix: Missing isset for $booking->bookingpolicy.
+* Bugfix: Fixed errors found with behat tests.
+* Bugfix: Fixed some mustache warnings.
+
+## Version 8.0.2 (2023031500)
+**New features:**
+* New feature: Add possibility to book anyone - even if not enrolled (for site admins only).
+
+**Improvements:**
+* Improvement: Better invisibility label with eye icon.
+* Improvement: Disable activity header in report.php.
+* Improvement: Hide activity header on book other users page.
+
+**Bugfixes:**
+* Bugfix: Fix some bugs in automatic number generation of report.php.
+* Bugfix: Add missing string 'nopriceisset'.
+* Bugfix: Fix warning on deleting last item in shopping cart.
+* Bugfix: Added isset check for missing bookingpolicy.
+
+## Version 8.0.1 (2023031301)
+**Improvements:**
+* Improvement: If shopping cart plugin is not installed, but a price is set, we just show the price.
+
+**Bugfixes:**
+* Bugfix: Do not show attachments string if there are no attachments in booking instance.
+
+## Version 8.0.0 (2023031300)
+**New features:**
+* New feature: New view.php now working with Wunderbyte Table (local_wunderbyte_table) with lots of improved features.
+* New feature: Show text depending on status description right in new booking overview.
+* New feature: Finished download for new view.php.
+* New feature: Add possibility to configure fields for booking options download.
+* New feature: Booking now supports prepagemodals with booking policy, a confirmation page and support for the "Book now" and "Add to cart" buttons. 
+* New feature: Re-implemented ratings, attachments and tag functionality for new view.php.
+* New feature: Intelligent differntiation between price and no-price booking options.
+* New feature: Implemented new "cancel myself" condition and settings.
+
+**Improvements:**
+* Improvement: Lots of improvements for the new view.php which now works with the local_wunderbyte_table plugin.
+* Improvement: Set old features to DEPRECATED which will be removed (or replaced) in the future.
+* Improvement: Remove deprecated JS stuff from view_actions.js - we only use it in report.php (as it breaks stuff in view).
+* Improvement: Show Wunderbyte logo in footer.
+* Improvement: Additional conditions now supporting booking, waiting list, confirmation of booking and cancelling and much more...
+* Improvement: Harmonized and improved menus for Moodle 4.0 and higher.
+* Improvement: Make fields of new view configurable.
+* Improvement: Improved some strings.
+* Improvement: Hide activity header using $PAGE->activityheader->disable() instead of CSS.
+
+**Bugfixes:**
+* Bugfix: Fix a bug where available places or minanswers were not shown correctly.
+* Bugfix: Fixed broken ratings in report.php.
+* Bugfix: Fix edit option link.
+* Bugfix: Poll URL (feedback link) was never saved for booking options.
+* Bugfix: Bookingid was missing in some tables because of incorrect array creation.
+* Bugfix: Function booking_updatestartenddate was not called on CSV import.
+* Bugfix: Fixed many tiny errors in the new prepagemodals.
+
 ## Version 7.9.0 (2023022000)
 **New features:**
 * New feature: Subbookings (not yet finished, but can be activated as preview).

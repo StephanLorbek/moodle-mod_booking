@@ -16,6 +16,7 @@
 
 namespace mod_booking;
 
+use cache;
 use context_module;
 use context_system;
 use mod_bigbluebuttonbn\settings;
@@ -93,9 +94,10 @@ class booking_bookit {
         $results = bo_info::get_condition_results($settings->id, $userid);
         // Decide, wether to show the direct booking button or a modal.
 
+        $datas = [];
         $showinmodalbutton = true;
         $extrabuttoncondition = '';
-        $justmyalert = false;
+        $justmyalert = null;
         foreach ($results as $result) {
 
             switch ($result['button'] ) {
@@ -120,8 +122,15 @@ class booking_bookit {
                     break;
                 case BO_BUTTON_JUSTMYALERT:
                     // The JUST MY ALERT prevents other buttons to be displayed.
-                    $justmyalert = true;
+                    if ($justmyalert === null) {
+                        $justmyalert = true;
+                    }
                     $buttoncondition = $result['classname'];
+                    break;
+                case BO_BUTTON_CANCEL:
+                    $justmyalert = false;
+                    $extrabuttoncondition = $result['classname'];
+                    $renderprepagemodal = false;
                     break;
             }
         }
@@ -135,43 +144,55 @@ class booking_bookit {
             $full = false;
         }
 
-        // The extra button condition is used to show Alert & Button, if this is allowed for a user.
-        if (!$justmyalert && !empty($extrabuttoncondition)) {
-            $condition = new $extrabuttoncondition();
+        // Do we really want to render a modal?
+        $showprepagemodal = (!$justmyalert && (count($prepages) > 0) && $renderprepagemodal);
 
-            list($template, $data) = $condition->render_button($settings, 0, $full);
-
-            // This supports multiple templates as well.
-            $datas[] = new bookit_button($data);
-
-            $templates[] = $template;
-        }
-
-        // Big decision: can we render the button right away, or do we need to introduce a modal?
-        if (!$justmyalert && (count($prepages) > 0) && $renderprepagemodal) {
+        // Big decision: can we render the button right away, or do we need to introduce a modal.
+        if ($showprepagemodal) {
 
             // We render the button only from the highest relevant blocking condition.
 
-            $datas[] = new prepagemodal(
+            $data = new prepagemodal(
                 $settings, // We pass on the optionid.
                 count($prepages), // The total number of pre booking pages.
                 $buttoncondition,  // This is the button we need to render twice.
-                $showinmodalbutton, // This marker just suppresses the in modal button.
+                !$justmyalert ? $extrabuttoncondition : '', // There might be a second button to render.
+                $userid, // The userid for which all this will be rendered.
             );
 
+            $datas[] = $data;
             $templates[] = 'mod_booking/bookingpage/prepagemodal';
 
             return [$templates, $datas];
         } else {
 
+            // The extra button condition is used to show Alert & Button, if this is allowed for a user.
+            if (!$justmyalert && !empty($extrabuttoncondition)) {
+                $condition = new $extrabuttoncondition();
+
+                list($template, $data) = $condition->render_button($settings, $userid, $full);
+
+                // This supports multiple templates as well.
+                $datas[] = new bookit_button($data);
+
+                $templates[] = $template;
+            }
+
             $condition = new $buttoncondition();
 
-            // The fourth param is for fullwidth button. We want it true, when we outside the modal and false inside.
+            list($template, $data) = $condition->render_button($settings, $userid, $full);
 
-            list($template, $data) = $condition->render_button($settings, 0, $full, false, $renderprepagemodal);
-
-            $datas[] = new bookit_button($data);
-            $templates[] = $template;
+            // If there is an extra button condition, we don't use two templates but one.
+            // We just move the extra condition to a different area.
+            if (!empty($extrabuttoncondition && !empty($datas) && isset($data['main']))) {
+                $extrabutton = reset($datas);
+                $extrabutton->data['top'] = $data['main'];
+                $datas = [$extrabutton];
+                $templates = [$template];
+            } else {
+                $datas[] = new bookit_button($data);
+                $templates[] = $template;
+            }
 
             return [$templates, $datas];
         }
@@ -212,8 +233,45 @@ class booking_bookit {
             // Therefore, we have to override it to make this functionality useful.
             // If the id is 1, this means that only the bookit button is blocking, this means we are allowed to book.
 
-            if ($id <= 1) {
+            if ($id < 1) {
                 $isavailable = true;
+            } else if ($id === BO_COND_BOOKITBUTTON) {
+
+                $cache = cache::make('mod_booking', 'confirmbooking');
+                $cachekey = $userid . "_" . $settings->id . "_bookit";
+                $now = time();
+                $cache->set($cachekey, $now);
+
+                $isavailable = false;
+
+            } else if ($id === BO_COND_CONFIRMBOOKIT) {
+
+                // Make sure cache is not blocking anymore.
+                $cache = cache::make('mod_booking', 'confirmbooking');
+                $cachekey = $userid . "_" . $settings->id . '_bookit';
+                $cache->delete($cachekey);
+
+                $isavailable = true;
+
+            } else if ($id === BO_COND_ALREADYBOOKED || $id === BO_COND_ONWAITINGLIST) {
+
+                // If the cancel condition is blocking here, we can actually mark the option for cancelation.
+                $cache = cache::make('mod_booking', 'confirmbooking');
+                $cachekey = $userid . "_" . $settings->id . "_cancel";
+                $now = time();
+                $cache->set($cachekey, $now);
+
+            } else if ($id === BO_COND_CONFIRMCANCEL) {
+
+                // Here we are already one step further and only confirm the cancelation.
+                $response = self::answer_booking_option($area, $itemid, STATUSPARAM_DELETED, $userid);
+
+                // Make sure cache is not blocking anymore.
+                $cache = cache::make('mod_booking', 'confirmbooking');
+                $cachekey = $userid . "_" . $settings->id . '_cancel';
+                $cache->delete($cachekey);
+
+                return $response;
             }
 
             if (!$isavailable) {
@@ -223,11 +281,13 @@ class booking_bookit {
                     'message' => 'notallowedtobook',
                 ];
             }
-            return self::answer_booking_option($area, $itemid, STATUSPARAM_BOOKED, $userid);
+            return array_merge(self::answer_booking_option($area, $itemid, STATUSPARAM_BOOKED, $userid),
+                                ['status' => 1, 'message' => 'booked']);
         } else if (strpos($area, 'subbooking') === 0) {
             // As a subbooking can have different slots, we use the area to provide the subbooking id.
             // The syntax is "subbooking-1" for the subbooking id 1.
-            return self::answer_subbooking_option($area, $itemid, STATUSPARAM_BOOKED, $userid);
+            return array_merge(self::answer_subbooking_option($area, $itemid, STATUSPARAM_BOOKED, $userid),
+                                ['status' => 1, 'message' => 'booked']);
         } else {
             return [
                 'status' => 0,

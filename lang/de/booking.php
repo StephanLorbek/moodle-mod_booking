@@ -15,14 +15,14 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 // General strings.
+$string['areyousure:book'] = 'Möchten Sie wirklich buchen?';
+$string['areyousure:cancel'] = 'Möchten Sie wirklich stornieren?';
 $string['assignteachers'] = 'Lehrer:innen zuweisen:';
 $string['alreadypassed'] = 'Bereits vergangen';
 $string['bookingoption'] = 'Buchungsoption';
 $string['bookingoptionnamewithoutprefix'] = 'Name (ohne Präfix)';
 $string['bookings'] = 'Buchungen';
-
 $string['updatebooking'] = 'Update Buchung';
-
 $string['booking:manageoptiontemplates'] = "Buchungsoptionsvorlagen verwalten";
 $string['booking:cantoggleformmode'] = 'Nutzer:in darf alle Einstellungen verwalten';
 $string['booking:overrideboconditions'] = 'Nutzer:in darf buchen auch wenn Verfügbarkeit false zurückliefert.';
@@ -34,6 +34,7 @@ $string['gotomanageresponses'] = '&lt;&lt; Buchungen verwalten';
 $string['gotomoodlecourse'] = 'Zum Moodle-Kurs';
 $string['messageprovider:bookingconfirmation'] = "Buchungsbestätigungen";
 $string['optionsiteach'] = 'Von mir geleitet';
+$string['placeholders'] = 'Platzhalter';
 $string['search'] = 'Suche...';
 $string['teachers'] = 'Trainer:innen';
 $string['thankyoubooked'] = '<i class="fa fa-3x fa-calendar-check-o text-success" aria-hidden="true"></i><br><br>
@@ -41,10 +42,14 @@ Vielen Dank! Sie haben <b>{$a}</b> erfolgreich gebucht.';
 $string['thankyoucheckout'] = '<i class="fa fa-3x fa-shopping-cart text-success" aria-hidden="true"></i><br><br>
 Vielen Dank! Sie haben <b>{$a}</b> in den Warenkorb gelegt. Klicken Sie nun auf <b>"Weiter zur Bezahlung"</b>
  um den Buchungsvorgang fortzusetzen.';
-$string['thankyouwaitinglist'] = '<i class="fa fa-3x fa-clock-o text-info" aria-hidden="true"></i><br><br>
+$string['thankyouwaitinglist'] = '<i class="fa fa-3x fa-clock-o text-primary" aria-hidden="true"></i><br><br>
 Sie wurden zur Warteliste von <b>{$a}</b> hinzugefügt. Sollte jemand ausfallen, rücken Sie automatisch nach.';
 $string['thankyouerror'] = '<i class="fa fa-3x fa-frown-o text-danger" aria-hidden="true"></i><br>
 Leider ist bei der Buchung von <b>{$a}</b> ein Fehler aufgetreten.';
+$string['usersmatching'] = 'Matching users';
+$string['allmoodleusers'] = 'All users of this site';
+$string['enrolledusers'] = 'Users enrolled in course';
+$string['nopriceisset'] = 'No price has been set';
 
 // General errors.
 $string['error:choosevalue'] = 'Sie müssen hier einen Wert auswählen.';
@@ -176,7 +181,6 @@ $string['backtoresponses'] = '&lt;&lt; Zurück zu den Buchungen';
 $string['allusersbooked'] = 'Alle {$a} Nutzer:innen wurden erfolgreich für diese Buchungsoption gebucht.';
 $string['notallbooked'] = 'Folgende Nutzer:innen konnten aufgrund nicht mehr verfügbarer Plätze oder durch das Überschreiten des vorgegebenen Buchungslimits pro Nutzer:in nicht gebucht werden: {$a}';
 $string['onlyusersfrominstitution'] = 'Sie können nur Nutzerinnen von dieser Instition hinzufügen: {$a}';
-
 $string['resultofcohortorgroupbooking'] = '<p>Die Buchung der globalen Gruppen hat folgendes Ergebnis gebracht:</p>
 <ul>
 <li>{$a->sumcohortmembers} Nutzer:innen in den ausgewählten globalen Gruppen gefunden</li>
@@ -189,6 +193,10 @@ $string['problemsofcohortorgroupbooking'] = '<br><p>Es konnten nicht alle Buchun
 <li>{$a->notsubscribedusers} Nutzer:innen konnten aus anderen Gründen nicht gebucht werden</li>
 </ul>';
 $string['nogrouporcohortselected'] = 'Sie müssen mindestens eine Gruppe oder globale Gruppe auswählen.';
+$string['bookanyoneswitchon'] = '<i class="fa fa-user-plus" aria-hidden="true"></i> Buchen von Nutzer:innen, die nicht eingeschrieben sind, erlauben';
+$string['bookanyoneswitchoff'] = '<i class="fa fa-user-times" aria-hidden="true"></i> Buchen von Nutzer:innen, die nicht eingeschrieben sind, nicht erlauben (empfohlen)';
+$string['bookanyonewarning'] = 'Achtung: Sie können nun beliebige Nutzer:innen buchen. Verwenden Sie diese Einstellung nur, wenn Sie genau wissen, was Sie tun.
+ Das Buchen von Nutzer:innen, die nicht in den Kurs eingeschrieben sind, kann möglicherweise zu Problemen führen.';
 
 // Subscribe_cohort_or_group_form.php.
 $string['scgfcohortheader'] = 'Globale Gruppe (Kohorte) buchen';
@@ -353,7 +361,8 @@ $string['connectedbooking'] = '[VERALTET] Vorgeschaltete Buchung';
 $string['errorpagination'] = 'Geben Sie ein Zahl ein, die größer als 0 ist';
 $string['notconectedbooking'] = 'Nicht vorgeschaltete Buchung';
 $string['connectedbooking_help'] = 'Buchung von der Teilnehmer:innen übernommen werden. Es kann bestimmt werden wie viele Teilnehmer:innen übernommen werden.';
-$string['cancancelbook'] = 'Nutzer:innen das Stornieren und buchen nach dem Buchungsstart erlauben?';
+$string['allowbookingafterstart'] = 'Buchen nach Kursbeginn erlauben';
+$string['cancancelmyself'] = 'Teilnehmer:innen dürfen Buchungen selbst stornieren';
 $string['cancancelbookdays'] = 'Nutzer:innen können nur bis n Tage vor Kursstart stornieren. Negative Werte meinen n Tage NACH Kursstart.';
 $string['cancancelbookdaysno'] = 'Kein Limit';
 $string['addtocalendar'] = 'Zum Kurs-Kalender hinzufügen';
@@ -368,13 +377,13 @@ $string['minanswers'] = 'Mindestteilnehmerzahl';
 $string['defaultbookingoption'] = 'Standardeinstellungen für Buchungsoptionen';
 $string['activatemails'] = 'E-Mails aktivieren (Bestätigungen, Erinnerungen etc.)';
 $string['sendcopytobookingmanger'] = 'Eine Kopie der Bestätigungsmail an den Buchungsverwalter senden';
-$string['allowdelete'] = 'Teilnehmer:innen dürfen Buchungen selbst stornieren';
 $string['bookingpolicy'] = 'Buchungsbedingungen - Booking Policy';
 
 $string['page:bookingpolicy'] = 'Buchungsbedingungen';
 $string['page:bookitbutton'] = 'Buchen';
 $string['page:subbooking'] = 'Zusätzliche Buchungen';
 $string['page:confirmation'] = 'Buchung abgeschlossen';
+$string['page:checkout'] = 'Zur Bezahlung';
 
 $string['confirmationmessagesettings'] = 'Buchungsbestätigungseinstellungen';
 $string['usernameofbookingmanager'] = 'Buchungsverwalter/in auswählen';
@@ -894,6 +903,39 @@ $string['pollurl_help'] = 'Folgende Platzhalter können im Text verwendet werden
 <li>{coursecalendarurl} - Link zum Abonnieren des Kurs-Kalenders (Kurs-Ereignisse)</li>
 </ul>';
 
+$string['placeholders_help'] = 'Lassen Sie dieses Feld leer, um den Standardtext der Website zu verwenden. Folgende Platzhalter können im Text verwendet werden:
+  <ul>
+  <li>{bookingdetails} - Zusammenfassung der Buchung (inkl. Sessions und Link zur Buchungsoption)</li>
+  <li>{gotobookingoption} - Link zur Buchungsoption</li>
+  <li>{status} - Buchungsstatus</li>
+  <li>{participant}</li>
+  <li>{profilepicture} - Profilbild</li>
+  <li>{title}</li>
+  <li>{duration}</li>
+  <li>{starttime}</li>
+  <li>{endtime}</li>
+  <li>{startdate}</li>
+  <li>{enddate}</li>
+  <li>{courselink}</li>
+  <li>{bookinglink}</li>
+  <li>{pollurl}</li>
+  <li>{pollurlteachers}</li>
+  <li>{location}</li>
+  <li>{institution}</li>
+  <li>{address}</li>
+  <li>{eventtype}</li>
+  <li>{teacher} - Name der ersten Trainer:in</li>
+  <li>{teachers} - Liste aller Trainer:innen</li>
+  <li>{teacherN} - Name eines spezifischen Trainers. Z.B. {teacher1}</li>
+  <li>{pollstartdate}</li>
+  <li>{qr_id} - QR Code der Userid einfügen</li>
+  <li>{qr_username} - QR Code des Usernamen einfügen</li>
+  <li>{dates} - Sessions (bei mehreren Terminen)</li>
+  <li>{shorturl} - Verkürzte URL der Buchungsoption</li>
+  <li>{usercalendarurl} - Link zum Abonnieren des User-Kalenders (persönliche Ereignisse)</li>
+  <li>{coursecalendarurl} - Link zum Abonnieren des Kurs-Kalenders (Kurs-Ereignisse)</li>
+  </ul>';
+
 $string['helptext:placeholders'] = '<p>
 <a data-toggle="collapse" href="#collapsePlaceholdersHelptext" role="button" aria-expanded="false" aria-controls="collapsePlaceholdersHelptext">
   <i class="fa fa-question-circle" aria-hidden="true"></i><span>&nbsp;Sie können die folgenden Platzhalter verwenden...</span>
@@ -1046,7 +1088,7 @@ $string['optionvisibility'] = 'Sichtbarkeit';
 $string['optionvisibility_help'] = 'Stellen Sie ein, ob die Buchungsoption für jede_n sichtbar sein soll oder nur für berechtigte Nutzer:innen.';
 $string['optionvisible'] = 'Für alle sichtbar (Standard)';
 $string['optioninvisible'] = 'Vor normalen Nutzer:innen verstecken (nur für berechtigte Personen sichtbar)';
-$string['invisibleoption'] = 'Unsichtbare Buchungsoption';
+$string['invisibleoption'] = '<i class="fa fa-eye-slash" aria-hidden="true"></i> Unsichtbar';
 $string['optionannotation'] = 'Interne Anmerkung';
 $string['optionannotation_help'] = 'Fügen Sie interne Notizen bzw. Anmerkungen hinzu. Diese werden NUR in DIESEM Formular und sonst nirgendwo angezeigt.';
 $string['optionidentifier'] = 'Identifikator';
@@ -1227,7 +1269,7 @@ $string['onlythisbookingoption'] = 'Nur diese Buchungsoption';
 $string['optionid'] = 'Option ID';
 $string['optiondatesmanager'] = 'Termine verwalten';
 $string['optionmenu'] = 'Diese Buchungsoption';
-$string['ratingsuccess'] = 'Die Bewrtungen wurden erfolgreich aktualisiert';
+$string['ratingsuccessful'] = 'Die Bewertungen wurden erfolgreich aktualisiert';
 $string['searchdate'] = 'Datum';
 $string['searchname'] = 'Vorname';
 $string['searchsurname'] = 'Nachname';
@@ -1875,6 +1917,11 @@ $string['bo_cond_priceisset_available'] = 'Buchen';
 $string['bo_cond_priceisset_full_available'] = 'Buchen möglich';
 $string['bo_cond_priceisset_not_available'] = 'Muss bezahlt werden';
 $string['bo_cond_priceisset_full_not_available'] = 'Preis gesetzt, Bezahlung nötig';
+
+$string['bo_cond_optionhasstarted_available'] = 'Buchen';
+$string['bo_cond_optionhasstarted_full_available'] = 'Buchen möglich';
+$string['bo_cond_optionhasstarted_not_available'] = 'Bereits begonnen - Buchen nicht mehr möglich';
+$string['bo_cond_optionhasstarted_full_not_available'] = 'Bereits begonnen - User können nicht mehr buchen';
 
 $string['bo_cond_subbookingblocks_available'] = 'Buchen';
 $string['bo_cond_subbookingblocks_full_available'] = 'Buchen möglich';

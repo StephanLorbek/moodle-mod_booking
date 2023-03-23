@@ -15,23 +15,18 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Base class for a single booking option availability condition.
- *
- * All bo condition types must extend this class.
+ * Already started condition (item cannot be booked anymore because course has started).
  *
  * @package mod_booking
  * @copyright 2022 Wunderbyte GmbH
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
- namespace mod_booking\bo_availability\conditions;
+namespace mod_booking\bo_availability\conditions;
 
-use context_module;
 use mod_booking\bo_availability\bo_condition;
-use mod_booking\booking_option;
+use mod_booking\bo_availability\bo_info;
 use mod_booking\booking_option_settings;
-use mod_booking\output\bookit_price;
-use mod_booking\price;
 use mod_booking\singleton_service;
 use MoodleQuickForm;
 
@@ -40,20 +35,19 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot . '/mod/booking/lib.php');
 
 /**
- * If a price is set for the option, normal booking is not available.
- *
- * Booking only via payment.
+ * Base class for a single bo availability condition.
  *
  * All bo condition types must extend this class.
+ *
  *
  * @package mod_booking
  * @copyright 2022 Wunderbyte GmbH
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class priceisset implements bo_condition {
+class optionhasstarted implements bo_condition {
 
     /** @var int $id Standard Conditions have hardcoded ids. */
-    public $id = BO_COND_PRICEISSET;
+    public $id = BO_COND_OPTIONHASSTARTED;
 
     /**
      * Needed to see if class can take JSON.
@@ -81,16 +75,19 @@ class priceisset implements bo_condition {
      */
     public function is_available(booking_option_settings $settings, $userid, $not = false):bool {
 
-        global $DB;
+        // Settings of the booking instance.
+        $bookingsettings = singleton_service::get_instance_of_booking_settings_by_cmid($settings->cmid);
 
-        // This is the return value. Not available to begin with.
-        $isavailable = false;
-
-        $priceitems = price::get_prices_from_cache_or_db('option', $settings->id);
-
-        // If the user is not yet booked we return true.
-        if (count($priceitems) == 0) {
-
+        // We kept the name "allowupdate" for legacy reasons.
+        // The actual meaning of this field is "allow booking after option has started".
+        if ($bookingsettings->allowupdate == 1) {
+            $isavailable = true;
+        } else if (!empty($settings->coursestarttime)) {
+            // In this case, we have to check if the booking option has already started.
+            $start = $settings->coursestarttime;
+            $now = time();
+            $isavailable = $now > $start ? false : true;
+        } else {
             $isavailable = true;
         }
 
@@ -144,14 +141,7 @@ class priceisset implements bo_condition {
 
         $description = $this->get_description_string($isavailable, $full);
 
-        // If shopping cart is not installed, we still want to allow admins to book for others.
-        $context = context_module::instance($settings->cmid);
-        if (!class_exists('local_shopping_cart\shopping_cart') &&
-            has_capability('mod/booking:bookforothers', $context)) {
-            return [$isavailable, $description, BO_PREPAGE_NONE, BO_BUTTON_MYALERT];
-        }
-
-        return [$isavailable, $description, BO_PREPAGE_NONE, BO_BUTTON_MYBUTTON];
+        return [$isavailable, $description, BO_PREPAGE_NONE, BO_BUTTON_JUSTMYALERT];
     }
 
     /**
@@ -174,15 +164,7 @@ class priceisset implements bo_condition {
      * @return array
      */
     public function render_page(int $optionid) {
-        $response = [
-            'data' => [],
-            // phpcs:ignore Squiz.PHP.CommentedOutCode.Found
-            /* 'json' => '', */
-            'template' => '',
-            'buttontype' => 0, // This means that the continue button is enabled.
-        ];
-
-        return $response;
+        return [];
     }
 
     /**
@@ -200,21 +182,9 @@ class priceisset implements bo_condition {
     public function render_button(booking_option_settings $settings,
         int $userid = 0, bool $full = false, bool $not = false, bool $fullwidth = true): array {
 
-        global $USER;
+        $label = $this->get_description_string(false, $full);
 
-        $userid = !empty($userid) ? $userid : $USER->id;
-
-        $settings = singleton_service::get_instance_of_booking_option_settings($settings->id);
-
-        $user = singleton_service::get_instance_of_user($userid);
-
-        $data = $settings->return_booking_option_information($user);
-
-        if ($fullwidth) {
-            $data['fullwidth'] = $fullwidth;
-        }
-
-        return ['mod_booking/bookit_price', $data];
+        return bo_info::render_button($settings, $userid, $label, 'alert alert-warning', true, $fullwidth, 'alert', 'option');
     }
 
     /**
@@ -224,13 +194,13 @@ class priceisset implements bo_condition {
      * @param bool $full
      * @return string
      */
-    private function get_description_string($isavailable, $full): string {
+    private function get_description_string($isavailable, $full) {
         if ($isavailable) {
-            $description = $full ? get_string('bo_cond_priceisset_full_available', 'mod_booking') :
-                get_string('bo_cond_priceisset_available', 'mod_booking');
+            $description = $full ? get_string('bo_cond_optionhasstarted_full_available', 'mod_booking') :
+                get_string('bo_cond_optionhasstarted_available', 'mod_booking');
         } else {
-            $description = $full ? get_string('bo_cond_priceisset_full_not_available', 'mod_booking') :
-                get_string('bo_cond_priceisset_not_available', 'mod_booking');
+            $description = $full ? get_string('bo_cond_optionhasstarted_full_not_available', 'mod_booking') :
+                get_string('bo_cond_optionhasstarted_not_available', 'mod_booking');
         }
         return $description;
     }

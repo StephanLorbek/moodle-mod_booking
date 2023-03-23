@@ -90,9 +90,11 @@ class fullybooked implements bo_condition {
 
         // If the user is not yet booked, and option is not fully booked, we return true.
         if (isset($bookinginformation['notbooked'])) {
-            if ($bookinginformation['notbooked']['fullybooked'] === false) {
+            if (!isset($bookinginformation['notbooked']['fullybooked']) ||
+                $bookinginformation['notbooked']['fullybooked'] === false) {
                 $isavailable = true;
-            } else if ($bookinginformation['notbooked']['freeonwaitinglist'] > 0) {
+            } else if (isset($bookinginformation['notbooked']['freeonwaitinglist']) &&
+                $bookinginformation['notbooked']['freeonwaitinglist'] > 0) {
                 $isavailable = true;
             }
         }
@@ -196,7 +198,7 @@ class fullybooked implements bo_condition {
 
         $label = $this->get_description_string(false, $full);
 
-        return bo_info::render_button($settings, $userid, $label, 'warning', true);
+        return bo_info::render_button($settings, $userid, $label, 'alert alert-warning', true, $fullwidth, 'alert', 'option');
     }
 
     /**

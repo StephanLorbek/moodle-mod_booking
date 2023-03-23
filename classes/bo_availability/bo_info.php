@@ -44,6 +44,7 @@ define('BO_BUTTON_MYBUTTON', 1); // Used for price or book it.
 define('BO_BUTTON_NOBUTTON', 2); // Forces no button (Eg special subbookings).
 define('BO_BUTTON_MYALERT', 3); // Alert is a weaker form of MYBUTTON. With special rights, Button is still shown.
 define('BO_BUTTON_JUSTMYALERT', 4); // A strong Alert which also prevents buttons to be displayed.
+define('BO_BUTTON_CANCEL', 5); // The Cancel button is shown next to MYALERT.
 
 // Define if there are sites and if so, if they are prepend, postpend or booking relevant.
 define('BO_PREPAGE_NONE', 0); // This condition provides no page.
@@ -474,7 +475,9 @@ class bo_info {
         $results = self::get_condition_results($optionid, $userid);
 
         // Results have to be sorted the right way. At the moment, it depends on the id of the blocking condition.
-        usort($results, fn($a, $b) => ($a['id'] < $b['id'] ? 1 : -1 ));
+        usort($results, function ($a, $b) {
+            return $a['id'] < $b['id'] ? 1 : -1;
+        });
 
         // Sorted List of blocking conditions which also provide a proper page.
         $conditions = self::return_sorted_conditions($results);
@@ -491,7 +494,6 @@ class bo_info {
 
         // We get the condition for the right page.
         $condition = new $condition();
-
         $object = $condition->render_page($optionid);
 
         // Now we introduce the header at the first place.
@@ -503,6 +505,7 @@ class bo_info {
         $footerdata = [
             'data' => [
                 'optionid' => $optionid,
+                'userid' => $userid,
             ]
         ];
 
@@ -553,14 +556,15 @@ class bo_info {
 
         // Show description.
         // If necessary in a modal.
-        if (!empty($description)) {
+        // phpcs:ignore Squiz.PHP.CommentedOutCode.Found
+        /* if (!empty($description)) {
             if ($modalfordescription) {
                 $data = new prepagemodal($optionid, 'test', $description);
                 $renderedstring = $output->render_prepagemodal($data);
             } else {
                 $renderedstring = html_writer::div($description, "alert alert-$style text-center");
             }
-        }
+        } */
 
         // Show price and add to cart button.
         if ($showprice && !empty($optionvalues) && $optionid && !empty($usertobuyfor)) {
@@ -588,15 +592,27 @@ class bo_info {
      * @param booking_option_settings $settings
      * @param integer $userid
      * @param string $label
-     * @param boolean $includeprice
+     * @param string $classes
+     * @param bool $includeprice
+     * @param bool $fullwidth
+     * @param string $role
+     * @param string $area
+     * @param bool $nojs
+     * @param string $dataaction
      * @return array
      */
     public static function render_button(
         booking_option_settings $settings,
         int $userid,
         string $label,
-        string $alerttype = 'danger',
-        bool $includeprice = false) {
+        string $classes = 'alert alert-danger',
+        bool $includeprice = false,
+        bool $fullwidth = true,
+        string $role = 'alert',
+        string $area = 'option',
+        bool $nojs = true,
+        string $dataaction = '' // Use 'noforward' to disable automatic forwarding.
+    ) {
 
         $user = singleton_service::get_instance_of_user($userid);
 
@@ -604,15 +620,24 @@ class bo_info {
             $user = null;
         }
 
+        if ($fullwidth) {
+            // For view.php and default rendering.
+            $fullwidthclasses = 'w-100 mt-0 mb-0 pl-1 pr-1 pt-2 pb-2';
+        } else {
+            // For prepage modals we want to render the button different than on view.php.
+            $fullwidthclasses = 'pl-3 pr-3 pb-2 pt-2 m-3';
+        }
+
         $data = [
             'itemid' => $settings->id,
-            'area' => 'option',
+            'area' => $area,
             'userid' => $userid ?? 0,
-            'nojs' => true,
+            'dataaction' => $dataaction,
+            'nojs' => $nojs,
             'main' => [
                 'label' => $label,
-                'class' => 'alert alert-' . $alerttype,
-                'role' => 'alert',
+                'class' => "$classes $fullwidthclasses text-center",
+                'role' => $role,
             ]
         ];
 
@@ -654,10 +679,16 @@ class bo_info {
 
         $showbutton = true;
         $confirmation = null;
+        $showcheckout = false;
 
         // First, sort all the pages according to this system:
         // Depending on the BO_PREPAGE_x constant, we order them pre or post the real booking button.
         foreach ($results as $result) {
+
+            if ($result['id'] === BO_COND_PRICEISSET &&
+                class_exists('local_shopping_cart\shopping_cart')) {
+                $showcheckout = true;
+            }
 
             // One no button condition tetermines this for all.
             if ($result['button'] === BO_BUTTON_NOBUTTON) {
@@ -671,6 +702,9 @@ class bo_info {
 
             if ($result['id'] === BO_COND_CONFIRMATION) {
                 $confirmation = $newclass;
+                /* We use 'showcheckout' to differentiate between "Booking complete"
+                and "Proceed to checkout" confirmation. */
+                $confirmation['showcheckout'] = $showcheckout;
                 continue;
             }
 
@@ -725,8 +759,13 @@ class bo_info {
 
         foreach ($conditionsarray as $key => $value) {
 
-            $array = explode('\\', $value['classname']);
-            $name = array_pop($array);
+            if (isset($value['showcheckout']) && $value['showcheckout'] == true) {
+                $name = 'checkout'; // So we'll get the string 'page:checkout'.
+            } else {
+                // In all other cases, we want to get the string of 'page:conditionname', e.g. 'page:confirmation'.
+                $array = explode('\\', $value['classname']);
+                $name = array_pop($array);
+            }
             $data['tabs'][] = [
                 'name' => get_string('page:' . $name, 'mod_booking'),
                 'active' => $key <= $pagenumber ? true : false,
@@ -790,7 +829,6 @@ class bo_info {
         $continueaction = 'continue';
         $continuelabel = get_string('continue');
         $continuelink = '#';
-
 
         // If we are on the booking or priceissetpage, we don't want to show the continue button.
         // The Thank you page only comes automatically.

@@ -23,12 +23,17 @@ import Ajax from 'core/ajax';
 import Templates from 'core/templates';
 import Notification from 'core/notification';
 
+import {reloadAllTables} from 'local_wunderbyte_table/reload';
+
 var currentbookitpage = {};
 var totalbookitpages = {};
 
 var SELECTORS = {
     MODALID: 'sbPrePageModal_',
-    INMODALDIV: ' div.pageContent',
+    INMODALDIV: ' div.modalMainContent',
+    MODALHEADER: 'div.modalHeader',
+    MODALBUTTONAREA: 'div.modalButtonArea',
+    MODALFOOTER: 'div.modalFooter',
     CONTINUEBUTTON: 'a.continue-button', // Don't want to find button right now.
     BACKBUTTON: 'a.back-button', // Don't want to find button right now.
     BOOKITBUTTON: 'div.booking-button-area.noprice',
@@ -79,11 +84,13 @@ export const initbookitbutton = (itemid, area) => {
 
             const userid = button.dataset.userid;
 
-            button.addEventListener('click', e => {
+            button.addEventListener('click', (e) => {
 
-                e.stopPropagation();
+                // E.stopPropagation();
 
-                bookit(itemid, area, userid);
+                if (e.target.classList.contains('btn')) {
+                    bookit(itemid, area, userid);
+                }
             });
         }
     });
@@ -92,13 +99,14 @@ export const initbookitbutton = (itemid, area) => {
 /**
  * Gets called from mustache template.
  * @param {integer} optionid
+ * @param {integer} userid
  * @param {integer} totalnumberofpages
  * @param {string} uniquid
  */
-export const initprepagemodal = (optionid, totalnumberofpages, uniquid) => {
+export const initprepagemodal = (optionid, userid, totalnumberofpages, uniquid) => {
 
     // eslint-disable-next-line no-console
-    console.log('initprepagemodal', optionid, totalnumberofpages, uniquid);
+    console.log('initprepagemodal', optionid, userid, totalnumberofpages, uniquid);
 
     if (!optionid || !uniquid || !totalnumberofpages) {
 
@@ -107,9 +115,10 @@ export const initprepagemodal = (optionid, totalnumberofpages, uniquid) => {
         elements.forEach(element => {
             optionid = element.dataset.optionid;
             uniquid = element.dataset.uniquid;
+            userid = element.dataset.userid;
             totalnumberofpages = element.dataset.pages;
             if (optionid && uniquid) {
-                initprepagemodal(optionid, totalnumberofpages, uniquid);
+                initprepagemodal(optionid, userid, totalnumberofpages, uniquid);
             }
         });
         return;
@@ -120,22 +129,26 @@ export const initprepagemodal = (optionid, totalnumberofpages, uniquid) => {
 
     // We need to get all prepage modals on this site. Make sure they are initialized.
 
-    respondToVisibility(optionid, totalnumberofpages, uniquid, loadPreBookingPage);
+    respondToVisibility(optionid, userid, uniquid, totalnumberofpages, loadPreBookingPage);
 };
 
 /**
  * React on visibility change.
  * @param {integer} optionid
- * @param {integer} totalnumberofpages
+ * @param {integer} userid
  * @param {string} uniquid
+ * @param {integer} totalnumberofpages
  * @param {function} callback
  */
-function respondToVisibility(optionid, totalnumberofpages, uniquid, callback) {
+function respondToVisibility(optionid, userid, uniquid, totalnumberofpages, callback) {
 
     // eslint-disable-next-line no-console
     console.log('respondToVisibility', optionid, totalnumberofpages, uniquid);
 
     let elements = document.querySelectorAll("[id^=" + SELECTORS.MODALID + optionid + "_" + uniquid + "]");
+
+    // eslint-disable-next-line no-console
+    console.log('elements', "[id^=" + SELECTORS.MODALID + optionid + "_" + uniquid + "]", elements);
 
     elements.forEach(element => {
         if (!element || element.dataset.initialized == 'true') {
@@ -147,7 +160,7 @@ function respondToVisibility(optionid, totalnumberofpages, uniquid, callback) {
         var observer = new MutationObserver(function() {
             if (!isHidden(element)) {
                 // Todo: Make sure it's not triggered on close.
-                callback(optionid, uniquid, totalnumberofpages);
+                callback(optionid, userid, uniquid, totalnumberofpages);
             }
         });
 
@@ -165,7 +178,7 @@ function respondToVisibility(optionid, totalnumberofpages, uniquid, callback) {
                 return;
             }
         }
-        callback(optionid, totalnumberofpages);
+        callback(optionid, userid, uniquid, totalnumberofpages);
     });
 }
 
@@ -182,13 +195,14 @@ function isHidden(el) {
 /**
  * Loads the (next) pre booking page.
  * @param {integer} optionid
+ * @param {integer} userid
  * @param {string} uniquid
  */
 export const loadPreBookingPage = (
-    optionid, uniquid) => {
+    optionid, userid = 0, uniquid = '') => {
 
     // eslint-disable-next-line no-console
-    console.log('loadPreBookingPage', optionid, uniquid);
+    console.log('loadPreBookingPage', optionid, uniquid, userid);
 
     const element = returnVisibleElement(optionid, uniquid, SELECTORS.INMODALDIV);
     if (element) {
@@ -203,7 +217,8 @@ export const loadPreBookingPage = (
     Ajax.call([{
         methodname: "mod_booking_load_pre_booking_page",
         args: {
-            'optionid': optionid,
+            optionid,
+            userid,
             'pagenumber': currentbookitpage[optionid],
         },
         done: function(res) {
@@ -222,11 +237,11 @@ export const loadPreBookingPage = (
             // We have a data key in the json
             const templates = res.template.split(',');
             let dataarray = jsonobject;
-            // const buttontype = res.buttontype;
+            // Const buttontype = res.buttontype;
 
             renderTemplatesOnPage(templates, dataarray, element);
 
-            // showRightButton(optionid, buttontype);
+            // ShowRightButton(optionid, buttontype);
 
             return true;
         },
@@ -245,17 +260,48 @@ export const loadPreBookingPage = (
  */
 async function renderTemplatesOnPage(templates, dataarray, element) {
 
-    for (const template of templates) {
+    // eslint-disable-next-line no-console
+    console.log('templates: ', templates);
+
+    const modal = element.closest('.modal-body');
+
+    modal.querySelector(SELECTORS.MODALHEADER).innerHTML = '';
+    modal.querySelector(SELECTORS.INMODALDIV).innerHTML = '';
+    modal.querySelector(SELECTORS.MODALBUTTONAREA).innerHTML = '';
+    modal.querySelector(SELECTORS.MODALFOOTER).innerHTML = '';
+
+    templates.forEach(async template => {
 
         const data = dataarray.shift();
+
+        let targetelement = element;
 
         if (!data) {
             return true;
         }
 
+        switch (template) {
+            case 'mod_booking/bookingpage/header':
+                targetelement = modal.querySelector(SELECTORS.MODALHEADER);
+                break;
+            case 'mod_booking/bookingoption_description_prepagemodal_bookit':
+                targetelement = modal.querySelector(SELECTORS.INMODALDIV);
+                break;
+            case 'mod_booking/bookit_button':
+            case 'mod_booking/bookit_price':
+                targetelement = modal.querySelector(SELECTORS.MODALBUTTONAREA);
+                break;
+            case 'mod_booking/bookingpage/footer':
+                targetelement = modal.querySelector(SELECTORS.MODALFOOTER);
+                break;
+        }
+
         await Templates.renderForPromise(template, data.data).then(({html, js}) => {
 
-            Templates.appendNodeContents(element, html, js);
+            // eslint-disable-next-line no-console
+            console.log('targetelement: ', targetelement);
+
+            Templates.replaceNodeContents(targetelement, html, js);
 
             return true;
         }).catch(ex => {
@@ -264,7 +310,8 @@ async function renderTemplatesOnPage(templates, dataarray, element) {
                 type: "danger"
             });
         });
-    }
+        return true;
+    });
     return true;
 }
 
@@ -297,13 +344,11 @@ function bookit(itemid, area, userid) {
 
             const promises = [];
 
+            // eslint-disable-next-line no-console
+            console.log(buttons);
+
             // We run through every button. and render the data.
             buttons.forEach(button => {
-
-                while (button.firstChild) {
-                    const child = button.firstChild;
-                    child.remove();
-                }
 
                 // For every button, we need a new jsonarray.
                 const arraytoreduce = [...jsonarray];
@@ -320,7 +365,7 @@ function bookit(itemid, area, userid) {
 
                         const promise = Templates.renderForPromise(template, datatorender).then(({html, js}) => {
 
-                            Templates.appendNodeContents(button, html, js);
+                            Templates.replaceNode(button, html, js);
 
                             return true;
                         }).catch(ex => {
@@ -336,6 +381,12 @@ function bookit(itemid, area, userid) {
             });
 
             Promise.all(promises).then(() => {
+
+                const backdrop = document.querySelector(SELECTORS.STATICBACKDROP);
+
+                if (!backdrop) {
+                    reloadAllTables();
+                }
 
                 // The actions on successful booking are executed elsewhere.
                 return true;
@@ -380,21 +431,23 @@ function returnVisibleElement(optionid, uniquid, appendedSelector) {
 /**
  * Load next prepage booking page.
  * @param {int} optionid
+ * @param {int} userid
  */
-export function continueToNextPage(optionid) {
+export function continueToNextPage(optionid, userid) {
 
     currentbookitpage[optionid]++;
 
-    loadPreBookingPage(optionid);
+    loadPreBookingPage(optionid, userid);
 }
 
 /**
  *  Load previous prepage booking page.
  * @param {int} optionid
+ * @param {int} userid
  */
-export function backToPreviousPage(optionid) {
+export function backToPreviousPage(optionid, userid) {
 
     currentbookitpage[optionid]--;
 
-    loadPreBookingPage(optionid);
+    loadPreBookingPage(optionid, userid);
 }

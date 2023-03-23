@@ -115,13 +115,7 @@ class onwaitinglist implements bo_condition {
      * @param integer $userid
      * @return boolean
      */
-    public function hard_block(booking_option_settings $settings, $userid):bool {
-
-        $context = context_system::instance();
-        if (has_capability('mod/booking:overrideboconditions', $context)) {
-            return false;
-        }
-
+    public function hard_block(booking_option_settings $settings, $userid): bool {
         return true;
     }
 
@@ -150,7 +144,7 @@ class onwaitinglist implements bo_condition {
 
         $description = $this->get_description_string($isavailable, $full);
 
-        return [$isavailable, $description, BO_PREPAGE_NONE, BO_BUTTON_MYALERT];
+        return [$isavailable, $description, BO_PREPAGE_NONE, BO_BUTTON_JUSTMYALERT];
     }
 
     /**
@@ -193,7 +187,7 @@ class onwaitinglist implements bo_condition {
 
         $label = $this->get_description_string(false, $full);
 
-        return bo_info::render_button($settings, $userid, $label, 'warning', true);
+        return bo_info::render_button($settings, $userid, $label, 'alert alert-warning', true, $fullwidth, 'alert', 'option');
     }
 
     /**

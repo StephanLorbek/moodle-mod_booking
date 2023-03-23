@@ -162,10 +162,12 @@ class bookingoptions_wbtable extends wunderbyte_table {
      */
     public function col_booknow($values) {
 
+        global $USER;
+
         // Render col_price using a template.
         $settings = singleton_service::get_instance_of_booking_option_settings($values->id, $values);
 
-        return booking_bookit::render_bookit_button($settings, 0);
+        return booking_bookit::render_bookit_button($settings, $USER->id);
     }
 
     /**
@@ -245,9 +247,14 @@ class bookingoptions_wbtable extends wunderbyte_table {
 
         $commentshtml = '';
 
-        // TODO: Unfortunately, this is not enough to fix comments with wunderbyte table.
-        // We still need to figure out how we can fix comments in combination with wb-table-search.
+        // phpcs:disable
+        // TODO: We still need to figure out how we can fix comments in combination with wb-table-search.
         // Notice: We already have a webservice called init_comments which might help us!
+        //     // Important: Without init commenting won't work.
+		//     global $CFG;
+        //     require_once($CFG->dirroot. '/comment/lib.php');
+
+        //     comment::init();
 
         // phpcs:ignore Squiz.PHP.CommentedOutCode.Found
         /* if (!empty($this->cm) && !empty($this->cmid) && !empty($this->context)) {
@@ -268,6 +275,8 @@ class bookingoptions_wbtable extends wunderbyte_table {
                 $commentshtml = $comment->output(true);
             }
         }*/
+        // phpcs:enable
+
         return $commentshtml;
     }
 
@@ -638,7 +647,7 @@ class bookingoptions_wbtable extends wunderbyte_table {
             // Show only one option.
             $onlyoneurl = new moodle_url('/mod/booking/view.php',
                 array('id' => $this->cmid, 'optionid' => $values->id,
-                    'action' => 'showonlyone', 'whichview' => 'showonlyone'));
+                    'whichview' => 'showonlyone'));
             $ddoptions[] = '<div class="dropdown-item">' .
                 html_writer::link($onlyoneurl,
                     $OUTPUT->pix_icon('i/publish',

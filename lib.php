@@ -42,6 +42,9 @@ define('MAX_PRICE_CATEGORIES', 9);
 // Currently up to 20 different semesters can be created.
 define('MAX_SEMESTERS', 20);
 
+// Time to confirm booking or cancellation in seconds.
+define('TIME_TO_CONFIRM', 20);
+
 // Define description parameters.
 define('DESCRIPTION_WEBSITE', 1); // Shows link button with text "book now" and no link to TeamsMeeting etc.
 define('DESCRIPTION_CALENDAR', 2); // Shows link button with text "go to bookingoption" and meeting links via link.php.
@@ -81,16 +84,19 @@ define('MSGCONTRPARAM_DO_NOT_SEND', 3);
 define('MSGCONTRPARAM_VIEW_CONFIRMATION', 4);
 
 // Define booking availability condition ids.
-define('BO_COND_ISLOGGEDINPRICE', 160);
-define('BO_COND_ISLOGGEDIN', 150);
-define('BO_COND_ALREADYBOOKED', 140);
-define('BO_COND_ALREADYRESERVED', 130);
-define('BO_COND_ISCANCELLED', 120);
-define('BO_COND_ISBOOKABLE', 110);
-define('BO_COND_ONWAITINGLIST', 100);
-define('BO_COND_NOTIFYMELIST', 90);
-define('BO_COND_FULLYBOOKED', 80);
-define('BO_COND_MAX_NUMBER_OF_BOOKINGS', 70);
+define('BO_COND_ISLOGGEDINPRICE', 190);
+define('BO_COND_ISLOGGEDIN', 180);
+define('BO_COND_CONFIRMCANCEL', 170);
+define('BO_COND_CANCELMYSELF', 105);
+define('BO_COND_ALREADYBOOKED', 150);
+define('BO_COND_ALREADYRESERVED', 140);
+define('BO_COND_ISCANCELLED', 130);
+define('BO_COND_ISBOOKABLE', 120);
+define('BO_COND_ONWAITINGLIST', 110);
+define('BO_COND_NOTIFYMELIST', 100);
+define('BO_COND_FULLYBOOKED', 90);
+define('BO_COND_MAX_NUMBER_OF_BOOKINGS', 80);
+define('BO_COND_OPTIONHASSTARTED', 70);
 define('BO_COND_BOOKING_TIME', 60);
 define('BO_COND_BOOKINGPOLICY', 50);
 define('BO_COND_SUBBOOKINGBLOCKS', 45);
@@ -100,7 +106,9 @@ define('BO_COND_JSON_PREVIOUSLYBOOKED', 13);
 define('BO_COND_JSON_CUSTOMUSERPROFILEFIELD', 12);
 define('BO_COND_JSON_USERPROFILEFIELD', 11);
 
-define('BO_COND_PRICEISSET', 10); // Price has to be the lowest blocking condition.
+define('BO_COND_NOSHOPPINGCART', 6);
+define('BO_COND_PRICEISSET', 5);
+define('BO_COND_CONFIRMBOOKIT', 2);
 define('BO_COND_BOOKITBUTTON', 1); // This is only used to show the book it button.
 define('BO_COND_CONFIRMATION', 0); // This is the last page after booking.
 
@@ -461,8 +469,11 @@ function booking_add_instance($booking) {
     $booking->beforecompletedtext = $booking->beforecompletedtext['text'] ?? null;
     $booking->aftercompletedtext = $booking->aftercompletedtext['text'] ?? null;
 
-    // To avoid errors.
-    $booking->bookingpolicy = $booking->bookingpolicy['text'] ?? '';
+    // If no policy was entered, we still have to check for HTML tags.
+    if (!isset($booking->bookingpolicy) || empty(strip_tags($booking->bookingpolicy))) {
+        $booking->bookingpolicy = '';
+    }
+
     // Insert answer options from mod_form.
     $booking->id = $DB->insert_record("booking", $booking);
 
@@ -613,6 +624,13 @@ function booking_update_instance($booking) {
     if (isset($booking->aftercompletedtext['text'])) {
         $booking->aftercompletedtext = $booking->aftercompletedtext['text'];
     }
+
+    // If no policy was entered, we still have to check for HTML tags.
+    // NOTE: $booking->bookingpolicy is a string! So we never use ['text'] here!
+    if (!isset($booking->bookingpolicy) || empty(strip_tags($booking->bookingpolicy))) {
+        $booking->bookingpolicy = '';
+    }
+
     $booking->bookedtext = $booking->bookedtext['text'];
     $booking->waitingtext = $booking->waitingtext['text'];
     $booking->notifyemail = $booking->notifyemail['text'];
@@ -1042,7 +1060,7 @@ function booking_update_options($optionvalues, $context) {
                 $googer = new GoogleURLAPI($gapik);
                 if (!empty($gapik)) {
                     $onlyoneurl = new moodle_url('/mod/booking/view.php',
-                            array('id' => $optionvalues->id, 'optionid' => $optionvalues->optionid, 'action' => 'showonlyone',
+                            array('id' => $optionvalues->id, 'optionid' => $optionvalues->optionid,
                                    'whichview' => 'showonlyone'));
                     $shorturl = $googer->shorten(htmlspecialchars_decode($onlyoneurl->__toString()));
                     if ($shorturl) {
@@ -1201,7 +1219,7 @@ function booking_update_options($optionvalues, $context) {
         if (!empty($gapik)) {
             $googer = new GoogleURLAPI($gapik);
             $onlyoneurl = new moodle_url('/mod/booking/view.php',
-                    array('id' => $optionvalues->id, 'optionid' => $optionid, 'action' => 'showonlyone',
+                    array('id' => $optionvalues->id, 'optionid' => $optionid,
                         'whichview' => 'showonlyone'));
 
             $shorturl = $googer->shorten(htmlspecialchars_decode($onlyoneurl->__toString()));
@@ -1603,9 +1621,11 @@ function booking_extend_settings_navigation(settings_navigation $settings, navig
                     navigation_node::TYPE_CUSTOM, null, 'nav_moveoptionto');
         } */
 
-        if (has_capability ( 'mod/booking:readresponses', $context ) || booking_check_if_teacher ($option )) {
+        if (has_capability ('mod/booking:readresponses', $context) || booking_check_if_teacher($option)) {
             $completion = new \completion_info($course);
-            if ($completion->is_enabled($cm) == COMPLETION_TRACKING_AUTOMATIC && $booking->enablecompletion > 0) {
+            if ($booking->enablecompletion > 0 &&
+                ($completion->is_enabled($cm) == COMPLETION_TRACKING_AUTOMATIC ||
+                $completion->is_enabled($cm) == COMPLETION_TRACKING_MANUAL)) {
                 $navref->add(get_string('confirmuserswith', 'booking'),
                     new moodle_url('/mod/booking/confirmactivity.php', array('id' => $cm->id, 'optionid' => $optionid)),
                     navigation_node::TYPE_CUSTOM, null, 'nav_confirmuserswith');
@@ -1723,30 +1743,55 @@ function booking_activitycompletion_teachers($selectedusers, $booking, $cmid, $o
  * @param array $allselectedusers
  */
 function booking_generatenewnumbers($bookingdatabooking, $cmid, $optionid, $allselectedusers) {
-    global $DB;
+    global $DB, $CFG;
+
+    $answerscount = $DB->get_field_sql(
+        "SELECT COUNT(*) AS answerscount
+        FROM {booking_answers}
+        WHERE optionid = :optionid AND waitinglist < 2",
+        ['optionid' => $optionid]);
 
     if (!empty($allselectedusers)) {
         $tmprecnum = $DB->get_record_sql(
-                'SELECT numrec FROM {booking_answers} WHERE optionid = ? ORDER BY numrec DESC LIMIT 1',
-                array($optionid));
+                "SELECT numrec
+                FROM {booking_answers}
+                WHERE optionid = :optionid AND waitinglist < 2
+                ORDER BY numrec DESC
+                LIMIT 1",
+                ['optionid' => $optionid]);
 
-        if ($tmprecnum->numrec == 0) {
+        // If NO users or ALL users are selected, we always want to start with 1.
+        if ($tmprecnum->numrec == 0 || count($allselectedusers) == $answerscount) {
             $recnum = 1;
         } else {
             $recnum = $tmprecnum->numrec + 1;
         }
 
-        foreach ($allselectedusers as $ui) {
+        foreach ($allselectedusers as $userid) {
             // TODO: Optimize DB query: get_records instead of loop.
-            $userdata = $DB->get_record('booking_answers',
-                    array('optionid' => $optionid, 'userid' => $ui));
+            $userdata = $DB->get_record_sql(
+                "SELECT *
+                FROM {booking_answers}
+                WHERE optionid = :optionid AND userid = :userid AND waitinglist < 2",
+                ['optionid' => $optionid, 'userid' => $userid]);
+
             $userdata->numrec = $recnum++;
             $DB->update_record('booking_answers', $userdata);
         }
     } else {
+        // Mysql and MariaDB use RAND().
+        $random = "RAND()";
+        // Postgres uses RANDOM().
+        if (isset($CFG->dbfamily) && $CFG->dbfamily == "postgres") {
+            $random = "RANDOM()";
+        }
+
         $allusers = $DB->get_records_sql(
-                'SELECT * FROM {booking_answers} WHERE optionid = ? ORDER BY RAND()',
-                array($optionid));
+                "SELECT *
+                FROM {booking_answers}
+                WHERE optionid = :optionid AND waitinglist < 2
+                ORDER BY {$random}",
+                ['optionid' => $optionid]);
 
         $recnum = 1;
 

@@ -562,8 +562,10 @@ class booking_option {
      * Updates canbookusers and bookedusers does not check the status (booked or waitinglist)
      * Just gets the registered booking from database
      * Calculates the potential users (bookers able to book, but not yet booked)
+     *
+     * @param bool $bookanyone if true, any user can be booked (also not enrolled users)
      */
-    public function update_booked_users() {
+    public function update_booked_users(bool $bookanyone = false) {
         global $CFG, $DB, $USER;
 
         if (empty($this->booking->canbookusers)) {
@@ -592,7 +594,10 @@ class booking_option {
 
         // Note: mod/booking:choose may have been revoked after the user has booked: not count them as booked.
         $allanswers = $DB->get_records_sql($sql, $params);
-        $this->bookedusers = array_intersect_key($allanswers, $this->booking->canbookusers);
+
+        // If $bookanyone is true, we do not check for enrolment.
+        $this->bookedusers = $bookanyone ? $allanswers : array_intersect_key($allanswers, $this->booking->canbookusers);
+
         // TODO offer users with according caps to delete excluded users from booking option.
         $this->numberofanswers = count($this->bookedusers);
         if (groups_get_activity_groupmode($this->booking->cm) == SEPARATEGROUPS &&
@@ -611,9 +616,10 @@ class booking_option {
             GROUP BY u.id
             ORDER BY ba.timemodified ASC";
             $groupmembers = $DB->get_records_sql($sql, array_merge($params, $inparams));
-            $this->bookedvisibleusers = array_intersect_key($groupmembers, $this->booking->canbookusers);
-        } else {
+            $this->bookedusers = array_intersect_key($groupmembers, $this->booking->canbookusers);
             $this->bookedvisibleusers = $this->bookedusers;
+        } else {
+            $this->bookedvisibleusers = $allanswers;
         }
         $this->potentialusers = array_diff_key($this->booking->canbookusers, $this->bookedvisibleusers);
         $this->sort_answers();
@@ -1694,7 +1700,8 @@ class booking_option {
         if ($bookingstatus = reset($bookingstatus)) {
             if (isset($bookingstatus['fullybooked']) && !$bookingstatus['fullybooked']) {
                 return STATUSPARAM_BOOKED;
-            } else if (!isset($bookingstatus['maxoverbooking']) || $bookingstatus['freeonwaitinglist'] > 0) {
+            } else if (!isset($bookingstatus['maxoverbooking']) ||
+                (isset($bookingstatus['freeonwaitinglist']) && $bookingstatus['freeonwaitinglist'] > 0)) {
                 return STATUSPARAM_WAITINGLIST;
             } else {
                 return false;
@@ -1808,7 +1815,9 @@ class booking_option {
 
         $suser = null;
 
-        foreach ($this->users as $key => $value) {
+        $bookinganswers = singleton_service::get_instance_of_booking_answers($this->settings);
+
+        foreach ($bookinganswers->usersonlist as $key => $value) {
             if ($value->userid == $userid) {
                 $suser = $key;
                 break;
@@ -1819,9 +1828,10 @@ class booking_option {
             return;
         }
 
-        if ($this->users[$suser]->completed == 0) {
+        if ($bookinganswers->usersonlist[$suser]->completed == 0) {
             $userdata = $DB->get_record('booking_answers',
-            array('optionid' => $this->optionid, 'userid' => $userid));
+            array('optionid' => $this->optionid, 'userid' => $userid,
+                'waitinglist' => STATUSPARAM_BOOKED));
             $userdata->completed = '1';
             $userdata->timemodified = time();
 
@@ -2121,8 +2131,10 @@ class booking_option {
         } else {
             // Send to all booked users if we have an empty $tousers array.
             // Also make sure that teacher reminders won't be send to booked users.
-            if (!empty($bookingoption->usersonlist) && $messageparam !== MSGPARAM_REMINDER_TEACHER) {
-                foreach ($bookingoption->usersonlist as $currentuser) {
+            $settings = singleton_service::get_instance_of_booking_option_settings($this->optionid);
+            $answers = singleton_service::get_instance_of_booking_answers($settings);
+            if (!empty($answers->usersonlist) && $messageparam !== MSGPARAM_REMINDER_TEACHER) {
+                foreach ($answers->usersonlist as $currentuser) {
                     $tmpuser = new stdClass();
                     $tmpuser->id = $currentuser->userid;
                     $allusers[] = $tmpuser;
@@ -2761,7 +2773,7 @@ class booking_option {
         $coursestarttime = $settings->coursestarttime;
 
         $allowupdatedays = $booking->settings->allowupdatedays;
-        if (!empty($allowupdatedays) && !empty($coursestarttime)) {
+        if (isset($allowupdatedays) && $allowupdatedays != 10000 && !empty($coursestarttime)) {
             // Different string depending on plus or minus.
             if ($allowupdatedays >= 0) {
                 $datestring = " - $allowupdatedays days";

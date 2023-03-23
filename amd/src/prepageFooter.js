@@ -21,10 +21,11 @@
 
 
 import {continueToNextPage, backToPreviousPage} from 'mod_booking/bookit';
+import {reloadAllTables} from 'local_wunderbyte_table/reload';
 
 var SELECTORS = {
     MODALID: 'sbPrePageModal_',
-    INMODALDIV: ' div.pageContent',
+    INMODALDIV: ' div.modalMainContent',
     INMODALFOOTER: ' div.prepage-booking-footer',
     INMODALBUTTON: 'div.in-modal-button',
     BOOKITBUTTON: 'div.booking-button-area',
@@ -36,13 +37,17 @@ const WAITTIME = 1500;
 /**
  * Add the click listener to a prepage modal button.
  * @param {integer} optionid
+ * @param {integer} userid
  */
-export function initFooterButtons(optionid) {
+export function initFooterButtons(optionid, userid) {
 
     initBookingButton(optionid);
 
     // First, get all link elements in the footer.
     const elements = document.querySelectorAll("[id^=" + SELECTORS.MODALID + optionid + "] " + SELECTORS.INMODALFOOTER + " a");
+
+    // eslint-disable-next-line no-console
+    console.log('elements', elements);
 
     elements.forEach(element => {
         if (element && !element.dataset.initialized) {
@@ -65,10 +70,10 @@ export function initFooterButtons(optionid) {
 
                 switch (action) {
                     case 'back':
-                        backToPreviousPage(optionid);
+                        backToPreviousPage(optionid, userid);
                     break;
                     case 'continue':
-                        continueToNextPage(optionid);
+                        continueToNextPage(optionid, userid);
                     break;
                     case 'checkout':
                         closeModal(optionid);
@@ -95,37 +100,39 @@ async function initBookingButton(optionid) {
     // First, we get the right modal.
     let modal = document.querySelector("div.modal.show[id^=" + SELECTORS.MODALID + optionid + "]");
 
-
     if (!modal) {
         return;
     }
 
-    // Within the modal, we only want to add the listener on the bookit button with option area.
-    const selector = SELECTORS.BOOKITBUTTON +
-    '[data-itemid]' +
-    '[data-area="option"]';
-
-    let button = modal.querySelector(selector);
-
-    if (!button) {
-        return;
-    }
-
-    // When there is the shopping-cart button, we want to go lower.
-    button = button.querySelector('.wb_shopping_cart') ?? button;
-
-    // eslint-disable-next-line no-console
-    console.log(selector, button);
-
-    button.addEventListener('click', () => {
+    modal.addEventListener('click', (e) => {
 
         // eslint-disable-next-line no-console
-        console.log('initBookingButton click');
+        console.log('click on modal', e.target);
 
-        // We don't continue right away but wait for a second.
-        setTimeout(() => {
-            continueToNextPage(optionid);
-        }, WAITTIME);
+        let button = e.target;
+
+        if (button) {
+
+            const parentElement = e.target.closest(SELECTORS.BOOKITBUTTON);
+            button = e.target.closest('.btn');
+
+            // eslint-disable-next-line no-console
+            console.log(button, parentElement);
+
+            if (parentElement && button) {
+                // eslint-disable-next-line no-console
+                console.log('initBookingButton click');
+
+                if ((parentElement.dataset.action == 'noforward')) {
+                    return;
+                }
+
+                // We don't continue right away but wait for a second.
+                setTimeout(() => {
+                    continueToNextPage(optionid);
+                }, WAITTIME);
+            }
+        }
     });
 }
 
@@ -141,5 +148,6 @@ function closeModal(optionid) {
     }
     if (backdrop) {
         backdrop.remove();
+        reloadAllTables();
     }
 }
