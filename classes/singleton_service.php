@@ -18,6 +18,7 @@ namespace mod_booking;
 
 use core_user;
 use Exception;
+use local_entities\entitiesrelation_handler;
 use mod_booking\booking;
 use mod_booking\booking_answers;
 use mod_booking\booking_option;
@@ -30,21 +31,96 @@ use stdClass;
  *
  * @package mod_booking
  * @since Moodle 3.11
- * @copyright 2021 Georg Maißer
+ * @copyright 2022 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Georg Maißer
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class singleton_service {
     // Hold the class instance of the singleton service.
+
+    /** @var singleton_service $instance */
     private static $instance = null;
 
-    // The constructor is private
-    // to prevent initiation with outer code.
+    /** @var array $bookinganswers */
+    public array $bookinganswers = [];
+
+    /** @var array $bookingsbycmid */
+    public array $bookingsbycmid = [];
+
+    /** @var array $bookingsbybookingid */
+    public array $bookingsbybookingid = [];
+
+    /** @var array $bookingsettingsbycmid */
+    public array $bookingsettingsbycmid = [];
+
+    /** @var array $bookingsettingsbybookingid */
+    public array $bookingsettingsbybookingid = [];
+
+    /** @var array $bookingoptions */
+    public array $bookingoptions = [];
+
+    /** @var array $bookingoptionsettings */
+    public array $bookingoptionsettings = [];
+
+    /** @var array $users */
+    public array $users = [];
+
+    /** @var array $prices */
+    public array $prices = [];
+
+    /** @var array $pricecategory */
+    public array $pricecategory = [];
+
+    /** @var array $userpricecategory */
+    public array $userpricecategory = [];
+
+    /** @var array $renderer */
+    public array $renderer = [];
+
+    /** @var array $campaigns */
+    public array $campaigns = [];
+
+    /** @var array $courses */
+    public array $courses = [];
+
+    /** @var array $cohorts */
+    public array $cohorts = [];
+
+    /** @var array $usercohorts */
+    public array $usercohorts = [];
+
+    /** @var array $entities */
+    public array $entities = [];
+    /** @var array $customfields */
+    public array $customfields = [];
+
+    /** @var array $index */
+    public array $index = [];
+
+    /** @var int $bookingmoduleid */
+    public int $bookingmoduleid;
+
+    /** @var array $allbookinginstances */
+    public array $allbookinginstances;
+
+
+    /**
+     * Constructor
+     *
+     * The constructor is private to prevent initiation with outer code.
+     *
+     * @return void
+     */
     private function __construct() {
         // The expensive process (e.g.,db connection) goes here.
     }
 
-    // The object is created from within the class itself
-    // only if the class has no instance.
+    /**
+     * The object is created from within the class itself only if the class has no instance.
+     *
+     * @return singleton_service
+     *
+     */
     public static function get_instance() {
         if (self::$instance == null) {
             self::$instance = new singleton_service();
@@ -58,7 +134,7 @@ class singleton_service {
      * @param booking_option_settings $settings
      * @return booking_answers
      */
-    public static function get_instance_of_booking_answers($settings) {
+    public static function get_instance_of_booking_answers($settings): booking_answers {
 
         $instance = self::get_instance();
 
@@ -72,11 +148,59 @@ class singleton_service {
     }
 
     /**
+     * When invalidating the cache, we need to also destroy the booking_settings (instance settings).
+     * As we batch handle a lot of users, they always need a "clean" booking (instance) settings object.
+     *
+     * @param int $cmid course module id
+     * @return bool
+     */
+    public static function destroy_booking_singleton_by_cmid($cmid) {
+        $instance = self::get_instance();
+
+        $bookingsettings = self::get_instance_of_booking_settings_by_cmid($cmid);
+        $bookingid = $bookingsettings->id;
+
+        if (isset($instance->bookingsbycmid[$cmid])
+            || isset($instance->bookingsbybookingid[$bookingid])
+            || isset($instance->bookingsettingsbycmid[$cmid])
+            || isset($instance->bookingsettingsbybookingid[$bookingid])
+        ) {
+            unset($instance->bookingsbycmid[$cmid]);
+            unset($instance->bookingsbybookingid[$bookingid]);
+            unset($instance->bookingsettingsbycmid[$cmid]);
+            unset($instance->bookingsettingsbybookingid[$bookingid]);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * When invalidating the cache, we need to also destroy the booking_option_settings.
+     * As we batch handle a lot of users, they always need a "clean" booking option settings object.
+     *
+     * @param int $optionid
+     * @return bool
+     */
+    public static function destroy_booking_option_singleton($optionid) {
+        $instance = self::get_instance();
+
+        if (isset($instance->bookingoptionsettings[$optionid])
+            || isset($instance->bookingoptions[$optionid])) {
+            unset($instance->bookingoptionsettings[$optionid]);
+            unset($instance->bookingoptions[$optionid]);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
      * When invalidating the cache, we need to also destroy the booking_answer_object.
      * As we batch handle a lot of users, they always need a "clean" booking answers object.
      *
-     * @param integer $optionid
-     * @return void
+     * @param int $optionid
+     * @return bool
      */
     public static function destroy_booking_answers($optionid) {
         $instance = self::get_instance();
@@ -93,7 +217,7 @@ class singleton_service {
      * Service to create and return singleton instance of booking by cmid.
      *
      * @param int $cmid
-     * @return booking
+     * @return booking|null
      */
     public static function get_instance_of_booking_by_cmid(int $cmid) {
 
@@ -118,9 +242,13 @@ class singleton_service {
      * Service to create and return singleton instance of booking by bookingid.
      *
      * @param int $bookingid
-     * @return booking
+     * @return booking|null
      */
     public static function get_instance_of_booking_by_bookingid(int $bookingid) {
+
+        if (empty($bookingid)) {
+            return null;
+        }
 
         $instance = self::get_instance();
 
@@ -128,6 +256,7 @@ class singleton_service {
             return $instance->bookingsbybookingid[$bookingid];
         } else {
             $cm = get_coursemodule_from_instance('booking', $bookingid);
+
             $booking = new booking($cm->id);
             $instance->bookingsbybookingid[$bookingid] = $booking;
             return $booking;
@@ -137,30 +266,22 @@ class singleton_service {
     /**
      * Service to create and return singleton instance of booking.
      *
-     * @param int $cmid
+     * @param int $optionid
+     *
      * @return booking
      */
-    public static function get_instance_of_booking_by_optionid(int $optionid) {
-
-        $instance = self::get_instance();
+    public static function get_instance_of_booking_by_optionid(int $optionid): booking {
 
         $bookingoptionsettings = self::get_instance_of_booking_option_settings($optionid);
 
-        $cm = get_coursemodule_from_instance('booking', $bookingoptionsettings->bookingid);
-
-        if (isset($instance->bookings[$cm->id])) {
-            return $instance->bookings[$cm->id];
-        } else {
-            $booking = new booking($cm->id);
-            $instance->bookings[$cm->id] = $booking;
-            return $booking;
-        }
+        return self::get_instance_of_booking_by_bookingid($bookingoptionsettings->bookingid);
     }
 
     /**
      * Service to create and return singleton instance of booking by cmid.
      *
      * @param int $cmid
+     *
      * @return booking_settings
      */
     public static function get_instance_of_booking_settings_by_cmid(int $cmid): booking_settings {
@@ -179,18 +300,29 @@ class singleton_service {
      * Service to create and return singleton instance of booking by bookingid.
      *
      * @param int $bookingid
-     * @return booking_settings
+     *
+     * @return booking_settings|null
      */
-    public static function get_instance_of_booking_settings_by_bookingid(int $bookingid): booking_settings {
+    public static function get_instance_of_booking_settings_by_bookingid(int $bookingid) {
+
+        if (empty($bookingid)) {
+            return null;
+        }
+
         $instance = self::get_instance();
 
         if (isset($instance->bookingsettingsbybookingid[$bookingid])) {
             return $instance->bookingsettingsbybookingid[$bookingid];
         } else {
-            $cm = get_coursemodule_from_instance('booking', $bookingid);
-            $settings = new booking_settings($cm->id);
-            $instance->bookingsettingsbybookingid[$bookingid] = $settings;
-            return $settings;
+            try {
+                $cm = get_coursemodule_from_instance('booking', $bookingid);
+
+                $settings = new booking_settings($cm->id);
+                $instance->bookingsettingsbybookingid[$bookingid] = $settings;
+                return $settings;
+            } catch (Exception $e) {
+                return null;
+            }
         }
     }
 
@@ -199,9 +331,11 @@ class singleton_service {
      *
      * @param int $cmid
      * @param int $optionid
-     * @return booking_option
+     *
+     * @return booking_option|null
      */
     public static function get_instance_of_booking_option(int $cmid, int $optionid) {
+
         $instance = self::get_instance();
 
         if (isset($instance->bookingoptions[$optionid])) {
@@ -222,11 +356,16 @@ class singleton_service {
      * Service to create and return singleton instance of booking_option_settings.
      *
      * @param int $optionid
-     * @param stdClass $dbrecord
+     * @param ?stdClass $dbrecord
+     *
      * @return booking_option_settings
      */
-    public static function get_instance_of_booking_option_settings($optionid, stdClass $dbrecord = null) {
+    public static function get_instance_of_booking_option_settings($optionid, ?stdClass $dbrecord = null): booking_option_settings {
         $instance = self::get_instance();
+
+        if (empty($optionid)) {
+            return new booking_option_settings(0);
+        }
 
         if (isset($instance->bookingoptionsettings[$optionid])) {
             return $instance->bookingoptionsettings[$optionid];
@@ -241,17 +380,47 @@ class singleton_service {
      * Service to create and return singleton instance of Moodle user.
      *
      * @param int $userid
+     * @param bool $includeprofilefields
+     *
      * @return stdClass
      */
-    public static function get_instance_of_user($userid) {
+    public static function get_instance_of_user(int $userid, bool $includeprofilefields = false) {
+        global $CFG;
         $instance = self::get_instance();
 
         if (isset($instance->users[$userid])) {
+            if ($includeprofilefields && !isset($instance->users[$userid]->profile)) {
+                require_once("{$CFG->dirroot}/user/profile/lib.php");
+                profile_load_custom_fields($instance->users[$userid]);
+            }
             return $instance->users[$userid];
         } else {
             $user = core_user::get_user($userid);
+            if ($includeprofilefields) {
+                require_once("{$CFG->dirroot}/user/profile/lib.php");
+                profile_load_custom_fields($user);
+            }
             $instance->users[$userid] = $user;
             return $user;
+        }
+    }
+
+
+    /**
+     * When invalidating the cache, we need to also destroy the booking_users_object.
+     * As we batch handle a lot of users, they always need a "clean" booking users object.
+     *
+     * @param int $userid
+     * @return bool
+     */
+    public static function destroy_user(int $userid) {
+        $instance = self::get_instance();
+
+        if (isset($instance->users[$userid])) {
+            unset($instance->users[$userid]);
+            return true;
+        } else {
+            return false;
         }
     }
 
@@ -259,7 +428,8 @@ class singleton_service {
      * Service to create and return singleton instance of price class.
      *
      * @param int $optionid
-     * @return user
+     *
+     * @return price
      */
     public static function get_instance_of_price($optionid) {
         $instance = self::get_instance();
@@ -278,7 +448,8 @@ class singleton_service {
      * This function does not automatically get the right category but needs the setter function below to be useful.
      *
      * @param string $identifier
-     * @return stdClass
+     *
+     * @return stdClass|null
      */
     public static function get_price_category($identifier) {
         $instance = self::get_instance();
@@ -291,10 +462,34 @@ class singleton_service {
     }
 
     /**
+     * Get the price category for a single user.
+     * @param mixed $user
+     *
+     * @return mixed
+     */
+    public static function get_pricecategory_for_user($user) {
+
+        if (empty($user->id)) {
+            return false;
+        }
+
+        $instance = self::get_instance();
+
+        if (isset($instance->userpricecategory[$user->id])) {
+            return $instance->userpricecategory[$user->id];
+        } else {
+            $category = price::get_pricecategory_for_user($user);
+            $instance->userpricecategory[$user->id] = $category;
+            return $category;
+        }
+    }
+
+    /**
      * Set pricecategory to singleton service.
      *
      * @param string $identifier
      * @param stdClass $pricecategory
+     *
      * @return bool
      */
     public static function set_price_category($identifier, $pricecategory) {
@@ -302,5 +497,245 @@ class singleton_service {
 
         $instance->pricecategory[$identifier] = $pricecategory;
         return true;
+    }
+
+    /**
+     * Sets and gets renderer instance.
+     *
+     * @param string $renderername
+     * @return singleton_service::$renderer
+     */
+    public static function get_renderer(string $renderername) {
+
+        global $PAGE;
+
+        $instance = self::get_instance();
+
+        if (!isset($instance->renderer[$renderername])) {
+            $render = $PAGE->get_renderer($renderername);
+            $instance->renderer[$renderername] = $render;
+        }
+
+        return $instance->renderer[$renderername];
+    }
+
+    /**
+     * Fetch campaigns if there are not there already.
+     * @return array
+     */
+    public static function get_all_campaigns(): array {
+
+        global $DB;
+
+        $instance = self::get_instance();
+
+        if (empty($instance->campaigns)) {
+            $campaigns = $DB->get_records('booking_campaigns');
+
+            if (!$campaigns || empty($campaigns)) {
+                $instance->campaigns = [];
+            } else {
+                $instance->campaigns = $campaigns;
+            }
+        }
+
+        return (array)$instance->campaigns;
+    }
+
+    /**
+     * Delete campaigns from singleton.
+     * @param int $id
+     * @return array
+     */
+    public static function reset_campaigns($id = 0): array {
+
+        $instance = self::get_instance();
+
+        if (empty($id)) {
+            $instance->campaigns = [];
+        } else {
+            unset($instance->campaigns[$id]);
+        }
+
+        return (array)$instance->campaigns;
+    }
+
+    /**
+     * Return course with given id.
+     * Returns false if course does not exist anymore.
+     *
+     * @param int $courseid
+     * @return object|bool
+     */
+    public static function get_course(int $courseid) {
+
+        global $DB;
+
+        $instance = self::get_instance();
+
+        if (!isset($instance->courses[$courseid])) {
+            if (!$course = $DB->get_record('course', ['id' => $courseid], '*', IGNORE_MISSING)) {
+                return false;
+            }
+            $instance->courses[$courseid] = $course;
+        }
+
+        return $instance->courses[$courseid];
+    }
+
+    /**
+     * Return course with given id.
+     *
+     * @param int $cohortid
+     * @return object
+     */
+    public static function get_cohort(int $cohortid): object {
+
+        global $DB;
+
+        $instance = self::get_instance();
+
+        if (!isset($instance->cohorts[$cohortid])) {
+            $cohort = $DB->get_record('cohort', ['id' => $cohortid], '*', IGNORE_MISSING);
+            $instance->cohorts[$cohortid] = $cohort;
+        }
+
+        return $instance->cohorts[$cohortid] ?: new stdClass();
+    }
+
+    /**
+     * Return cohorts of a given user.
+     *
+     * @param int $userid
+     * @return array
+     */
+    public static function get_cohorts_of_user(int $userid): array {
+
+        $instance = self::get_instance();
+
+        if (!isset($instance->usercohorts[$userid])) {
+            $usercohorts = cohort_get_user_cohorts($userid);
+            $instance->usercohorts[$userid] = $usercohorts;
+        }
+
+        return $instance->usercohorts[$userid];
+    }
+
+    /**
+     * Return entity object by id.
+     *
+     * @param int $id
+     *
+     * @return object
+     *
+     */
+    public static function get_entity_by_id(int $id) {
+        $instance = self::get_instance();
+
+        if (!isset($instance->entities[$id])) {
+            $instance->entities[$id] = entitiesrelation_handler::get_entities_by_id($id);
+        }
+
+        return $instance->entities[$id] ?: new stdClass();
+    }
+    /**
+     * We store the options of the customfield.
+     *
+     * @param int $fieldid
+     *
+     * @return array
+     *
+     */
+    public static function get_customfields_select_options(int $fieldid): array {
+
+        global $DB;
+
+        $customfields = [];
+        $instance = self::get_instance();
+
+        if (!isset($instance->customfields[$fieldid])) {
+            $field = $DB->get_record('customfield_field', ['id' => $fieldid], 'configdata');
+            $configdata = json_decode($field->configdata, true);
+
+            $options = $configdata['options'];
+            $optionlist = explode("\n", $options);
+            $counter = 1;
+
+            foreach ($optionlist as $option) {
+                $option =
+
+                $customfields[$counter] = trim($option);
+                $counter++;
+            }
+
+            $instance->customfields[$fieldid] = $customfields;
+        }
+
+        return $instance->customfields[$fieldid];
+    }
+
+    /**
+     * Returns ascending index for userids.
+     *
+     * @param string $uniqueid
+     * @param string $indexid
+     *
+     * @return int
+     *
+     */
+    public static function get_index_number(string $uniqueid, string $indexid): int {
+        $instance = self::get_instance();
+
+        if (!isset($instance->index[$uniqueid])) {
+            $instance->index[$uniqueid] = [
+                'counter' => 1,
+            ];
+            $instance->index[$uniqueid][$indexid] = 1;
+        } else if (!isset($instance->index[$uniqueid][$indexid])) {
+            $instance->index[$uniqueid]['counter'] ++;
+            $instance->index[$uniqueid][$indexid] = $instance->index[$uniqueid]['counter'];
+        }
+
+        return $instance->index[$uniqueid][$indexid];
+    }
+
+    /**
+     * Return id of booking module.
+     *
+     * @return int|mixed
+     *
+     */
+    public static function get_id_of_booking_module() {
+        $instance = self::get_instance();
+
+        if (!isset($instance->bookingmoduleid)) {
+            global $DB;
+
+            $bookingmoduleid = $DB->get_record('modules', ['name' => 'booking'], 'id');
+
+            $instance->bookingmoduleid = $bookingmoduleid->id;
+        }
+
+        return $instance->bookingmoduleid;
+    }
+
+    /**
+     * Return array of all bookinginstance objects.
+     *
+     * @return array
+     *
+     */
+    public static function get_all_booking_instances() {
+        $instance = self::get_instance();
+
+        if (!isset($instance->allbookinginstances)) {
+            global $DB;
+
+            $bookinginstances = $DB->get_records('booking');
+
+            $instance->allbookinginstances = $bookinginstances;
+        }
+
+        return $instance->allbookinginstances;
     }
 }

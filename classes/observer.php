@@ -18,16 +18,26 @@
  * Event observers.
  *
  * @package mod_booking
- * @copyright 2015 Andraž Prinčič <atletek@gmail.com>
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Andraž Prinčič <atletek@gmail.com>
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
+use core\event\course_module_updated;
+use mod_booking\booking;
 use mod_booking\booking_option;
 use mod_booking\booking_rules\rules_info;
 use mod_booking\calendar;
+use mod_booking\elective;
 use mod_booking\singleton_service;
 
 /**
- * Event observer for mod_booking.
+ * Class to handle event observer for mod_booking.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Andraž Prinčič <atletek@gmail.com>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class mod_booking_observer {
 
@@ -51,6 +61,9 @@ class mod_booking_observer {
      */
     public static function user_updated(\core\event\user_updated $event) {
 
+        // Prices can be depend on the user profile field. Therefore, we need to update caching of prices.
+        cache_helper::purge_by_event('setbackprices');
+
         $userid = $event->relateduserid;
 
         // Check if any booking rules apply for this new user.
@@ -65,11 +78,12 @@ class mod_booking_observer {
     public static function user_deleted(\core\event\user_deleted $event) {
         global $DB;
 
-        $params = array('userid' => $event->relateduserid);
+        $params = ['userid' => $event->relateduserid];
 
         $DB->delete_records_select('booking_answers', 'userid = :userid', $params);
         $DB->delete_records_select('booking_teachers', 'userid = :userid', $params);
         $DB->delete_records_select('booking_optiondates_teachers', 'userid = :userid', $params);
+        cache_helper::purge_by_event('setbackcachedteachersjournal');
         $DB->delete_records_select('booking_userevents', 'userid = :userid', $params);
         $DB->delete_records_select('booking_icalsequence', 'userid = :userid', $params);
     }
@@ -115,45 +129,54 @@ class mod_booking_observer {
 
 
     /**
+     * Booking answer cancelled.
+     *
      * @param \mod_booking\event\bookinganswer_cancelled $event
      * @throws dml_exception
      */
     public static function bookinganswer_cancelled(\mod_booking\event\bookinganswer_cancelled $event) {
 
-        global $DB;
+        rules_info::$eventstoexecute[] = function () use ($event) {
 
-        $userid = $event->relateduserid;
-        $optionid = $event->objectid;
+            global $DB;
 
-        // If a user is removed from a booking option, we also have to delete his/her user events.
-        $records = $DB->get_records('booking_userevents', array('userid' => $userid, 'optionid' => $optionid));
-        foreach ($records as $record) {
-            $DB->delete_records('event', array('id' => $record->eventid));
-            $DB->delete_records('booking_userevents', array('id' => $record->id));
-        }
+            $userid = $event->relateduserid;
+            $optionid = $event->objectid;
+
+            // If a user is removed from a booking option, we also have to delete his/her user events.
+            $records = $DB->get_records('booking_userevents', ['userid' => $userid, 'optionid' => $optionid]);
+            foreach ($records as $record) {
+                $DB->delete_records('event', ['id' => $record->eventid]);
+                $DB->delete_records('booking_userevents', ['id' => $record->id]);
+            }
+        };
     }
 
     /**
+     * Booking option cancelled.
+     *
      * @param \mod_booking\event\bookingoption_cancelled $event
      * @throws dml_exception
      */
     public static function bookingoption_cancelled(\mod_booking\event\bookingoption_cancelled $event) {
 
-        $optionid = $event->objectid;
-        $settings = singleton_service::get_instance_of_booking_option_settings($optionid);
-        $bookingoption = singleton_service::get_instance_of_booking_option($settings->cmid, $optionid);
-        $bookinganswer = singleton_service::get_instance_of_booking_answers($settings);
+        rules_info::$eventstoexecute[] = function () use ($event) {
+            $optionid = $event->objectid;
+            $settings = singleton_service::get_instance_of_booking_option_settings($optionid);
+            $bookingoption = singleton_service::get_instance_of_booking_option($settings->cmid, $optionid);
+            $bookinganswer = singleton_service::get_instance_of_booking_answers($settings);
 
-        foreach ($bookinganswer->users as $user) {
-            /* Third param $bookingoptioncancel = true is important,
-            so we do not trigger bookinganswer_cancelled
-            and send no extra cancellation mails to each user.
-            Instead we want to use our new bookingoption_cancelled rule here. */
-            $bookingoption->user_delete_response($user->id, false, true);
+            foreach ($bookinganswer->users as $user) {
+                /* Third param $bookingoptioncancel = true is important,
+                so we do not trigger bookinganswer_cancelled
+                and send no extra cancellation mails to each user.
+                Instead we want to use our new bookingoption_cancelled rule here. */
+                $bookingoption->user_delete_response($user->id, false, true);
 
-            // Also delete user events.
-            calendar::delete_booking_userevents_for_option($optionid, $user->id);
-        }
+                // Also delete user events.
+                calendar::delete_booking_userevents_for_option($optionid, $user->id);
+            }
+        };
     }
 
     /**
@@ -167,18 +190,15 @@ class mod_booking_observer {
 
         $optionid = $event->objectid;
         $cmid = $event->contextinstanceid;
-        $context = $event->get_context();
 
-        $bookingoption = singleton_service::get_instance_of_booking_option($cmid, $optionid);
-
-        $option = $bookingoption->option;
+        $settings = singleton_service::get_instance_of_booking_option_settings($optionid);
 
         // If there are associated optiondates (sessions) then update their calendar events.
         if ($optiondates = $DB->get_records('booking_optiondates', ['optionid' => $optionid])) {
 
             // Delete course event if we have optiondates (multisession!).
-            if ($option->calendarid) {
-                $DB->delete_records('event', array('id' => $option->calendarid));
+            if ($settings->calendarid) {
+                $DB->delete_records('event', ['id' => $settings->calendarid]);
                 $data = new stdClass();
                 $data->id = $optionid;
                 $data->calendarid = 0;
@@ -187,39 +207,32 @@ class mod_booking_observer {
                 // Also, delete all associated user events.
 
                 // Get all the user events.
-                $sql = "SELECT e.* FROM {booking_userevents} ue
-                JOIN {event} e
-                ON ue.eventid = e.id
-                WHERE ue.optionid = :optionid AND
-                ue.optiondateid IS NULL";
+                $sql = "SELECT e.*
+                        FROM {booking_userevents} ue
+                        JOIN {event} e
+                        ON ue.eventid = e.id
+                        WHERE ue.optionid = :optionid
+                        AND ue.optiondateid IS NULL";
 
-                $allevents = $DB->get_records_sql($sql, [
-                        'optionid' => $optionid]);
+                $allevents = $DB->get_records_sql($sql, ['optionid' => $optionid]);
 
                 // We delete all userevents and return false.
-
                 foreach ($allevents as $eventrecord) {
-                    $DB->delete_records('event', array('id' => $eventrecord->id));
-                    $DB->delete_records('booking_userevents', array('id' => $eventrecord->id));
+                    $DB->delete_records('event', ['id' => $eventrecord->id]);
+                    $DB->delete_records('booking_userevents', ['id' => $eventrecord->id]);
                 }
             }
 
             foreach ($optiondates as $optiondate) {
                 // Create or update the sessions.
-                option_optiondate_update_event($option, $optiondate, $cmid);
+                option_optiondate_update_event($optionid, $cmid, $optiondate);
             }
-        } else { // This means that there are no multisessions.
-            // This is for the course event.
-            new calendar($event->contextinstanceid, $optionid, 0, calendar::TYPEOPTION);
-
-            // This is for the user events.
-            option_optiondate_update_event($option, null, $cmid);
         }
 
         $allteachers = $DB->get_fieldset_select('booking_teachers', 'userid', 'optionid = :optionid AND calendarid > 0',
-            array( 'optionid' => $event->objectid));
+            [ 'optionid' => $event->objectid]);
         foreach ($allteachers as $key => $value) {
-            new calendar($event->contextinstanceid, $event->objectid, $value, calendar::TYPETEACHERUPDATE);
+            new calendar($event->contextinstanceid, $event->objectid, $value, calendar::MOD_BOOKING_TYPETEACHERUPDATE);
         }
 
         // At the very last moment, when everything is done, we invalidate the table cache.
@@ -236,18 +249,22 @@ class mod_booking_observer {
 
         $optionid = $event->other['optionid'];
 
+        if (empty($optionid)) {
+            return;
+        }
+
         new calendar($event->contextinstanceid, $optionid, 0,
-            calendar::TYPEOPTIONDATE, $event->objectid);
+            calendar::MOD_BOOKING_TYPEOPTIONDATE, $event->objectid);
 
         $cmid = $event->contextinstanceid;
         $bookingoption = singleton_service::get_instance_of_booking_option($cmid, $optionid);
 
         $users = $bookingoption->get_all_users_booked();
         foreach ($users as $user) {
-            new calendar($event->contextinstanceid, $optionid, $user->id, calendar::TYPEOPTIONDATE, $event->objectid, 1);
+            new calendar($event->contextinstanceid, $optionid, $user->userid,
+                calendar::MOD_BOOKING_TYPEOPTIONDATE, $event->objectid, 1);
         }
     }
-
 
     /**
      * When a booking option is completed, we send a mail to the user (as long as sendmail is activated).
@@ -260,7 +277,7 @@ class mod_booking_observer {
         $cmid = $event->other['cmid'];
         $selecteduserid = $event->relateduserid;
 
-        $bookingoption = new booking_option($cmid, $optionid);
+        $bookingoption = singleton_service::get_instance_of_booking_option($cmid, $optionid);
 
         if (empty($bookingoption->booking->settings->sendmail)) {
             // If sendmail is not set or not active, we don't do anything.
@@ -300,16 +317,20 @@ class mod_booking_observer {
                 "SELECT cm.id FROM {course_modules} cm
                 JOIN {modules} md ON md.id = cm.module
                 JOIN {booking} m ON m.id = cm.instance
-                WHERE md.name = 'booking' AND cm.instance = ?", array($value->bookingid)
+                WHERE md.name = 'booking' AND cm.instance = ?", [$value->bookingid]
             );
 
-            new calendar($tmpcmid->id, $value->id, 0, calendar::TYPEOPTION);
+            // There are no calendar entries for whole booking options anymore. Only for optiondates!
+            // phpcs:ignore Squiz.PHP.CommentedOutCode.Found
+            /* new calendar($tmpcmid->id, $value->id, 0, calendar::MOD_BOOKING_TYPEOPTION); */
+
+            // TODO: We have to re-write this function so all calendar entries of optiondates will get updated correctly.
 
             $allteachers = $DB->get_records_sql("SELECT userid FROM {booking_teachers} WHERE optionid = ? AND calendarid > 0",
-                array($value->id));
+                [$value->id]);
 
             foreach ($allteachers as $keyt => $valuet) {
-                new calendar($tmpcmid->id, $value->id, $valuet->userid, calendar::TYPETEACHERUPDATE);
+                new calendar($tmpcmid->id, $value->id, $valuet->userid, calendar::MOD_BOOKING_TYPETEACHERUPDATE);
             }
         }
     }
@@ -320,7 +341,7 @@ class mod_booking_observer {
      * @param \mod_booking\event\teacher_added $event
      */
     public static function teacher_added(\mod_booking\event\teacher_added $event) {
-        new calendar($event->contextinstanceid, $event->objectid, $event->relateduserid, calendar::TYPETEACHERADD);
+        new calendar($event->contextinstanceid, $event->objectid, $event->relateduserid, calendar::MOD_BOOKING_TYPETEACHERADD);
     }
 
     /**
@@ -329,7 +350,7 @@ class mod_booking_observer {
      * @param \mod_booking\event\teacher_removed $event
      */
     public static function teacher_removed(\mod_booking\event\teacher_removed $event) {
-        new calendar($event->contextinstanceid, $event->objectid, $event->relateduserid, calendar::TYPETEACHERREMOVE);
+        new calendar($event->contextinstanceid, $event->objectid, $event->relateduserid, calendar::MOD_BOOKING_TYPETEACHERREMOVE);
     }
 
     /**
@@ -352,56 +373,58 @@ class mod_booking_observer {
     /**
      * This is triggered on any event. Depending on the rule, the execution is triggered.
      *
-     * @param mixed $event
+     * @param \core\event\base $event
      * @return void
      */
-    public static function execute_rule($event) {
+    public static function execute_rule(\core\event\base $event) {
 
+        rules_info::collect_rules_for_execution($event);
+        if (PHPUNIT_TEST) {
+            // Process after every event when unit testing.
+            rules_info::filter_rules_and_execute();
+        }
+    }
+
+    /**
+     * When a course is completed, check if the user needs to be enrolled in the next course.
+     *
+     * @param \core\event\course_completed $event
+     * @throws coding_exception
+     * @throws dml_exception
+     * @throws moodle_exception
+     */
+    public static function course_completed(\core\event\course_completed $event) {
         global $DB;
 
-        // We want booking events only.
-        $data = $event->get_data();
-        if ($data['component'] !== 'mod_booking') {
-            return;
+        // Check if there is an associated booking_answer with status 'booked' for the userid and courseid.
+        $sql = 'SELECT ba.userid, bo.courseid
+                FROM {booking_answers} ba
+                JOIN {booking_options} bo
+                ON ba.optionid = bo.id
+                WHERE ba.userid = :userid AND ba.waitinglist = 0 AND bo.courseid = :courseid';
+        $params = ['userid' => $event->relateduserid, 'courseid' => $event->courseid];
+
+        // Only execute if there are associated booking_answers.
+        if ($bookedanswers = $DB->get_records_sql($sql, $params)) {
+            // Call the enrolment function.
+            elective::enrol_booked_users_to_course();
         }
+    }
 
-        // TODO: Get name of event and only trigger when the rule is set to listen on this specific event.
+    /**
+     * React on update of course module and purge singleton & caches.
+     *
+     * @param course_module_updated $event
+     *
+     * @return void
+     *
+     */
+    public static function course_module_updated(course_module_updated $event) {
 
-        $optionid = $event->objectid ?? 0;
-
-        // We retrieve all the event based booking rules.
-        $records = $DB->get_records('booking_rules', ['rulename' => 'rule_react_on_event']);
-
-        // Now we check all the existing rules.
-        foreach ($records as $record) {
-
-            $rule = rules_info::get_rule($record->rulename);
-
-            // THIS is the place where we need to add event data to the rulejson!
-            $ruleobj = json_decode($record->rulejson);
-
-            if (!empty($event->userid)) {
-                if (empty($ruleobj->datafromevent)) {
-                    $ruleobj->datafromevent = new stdClass;
-                }
-                $ruleobj->datafromevent->userid = $event->userid;
-            }
-            if (!empty($event->relateduserid)) {
-                if (empty($ruleobj->datafromevent)) {
-                    $ruleobj->datafromevent = new stdClass;
-                }
-                $ruleobj->datafromevent->relateduserid = $event->relateduserid;
-            }
-            // We save rulejson again with added event data.
-            $record->rulejson = json_encode($ruleobj);
-            // Save it into the rule.
-            $rule->set_ruledata($record);
-
-            // We only execute if the rule in question listens to the right event.
-            if (!empty($rule->boevent)) {
-                if ($data['eventname'] == $rule->boevent) {
-                    $rule->execute($optionid, 0);
-                }
+        if (!empty($event->objectid)) {
+            $cm = get_coursemodule_from_id('booking', $event->objectid);
+            if (!empty($cm->id)) {
+                booking::purge_cache_for_booking_instance_by_cmid($cm->id);
             }
         }
     }

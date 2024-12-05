@@ -89,7 +89,7 @@ class bookit_price implements renderable, templatable {
         if ($context && !isloggedin()) {
 
             $this->context = $context;
-            $this->priceitems = price::get_prices_from_cache_or_db('option', $settings->id);
+            $this->priceitems = price::get_prices_from_cache_or_db('option', $settings->id, $userid);
             // When we render for guest, we don't need the rest.
             return;
         }
@@ -106,14 +106,14 @@ class bookit_price implements renderable, templatable {
             $userstatus = $bookinganswers->user_status($buyforuser->id);
 
             switch ($userstatus) {
-                case STATUSPARAM_RESERVED:
-                case STATUSPARAM_NOTBOOKED:
-                case STATUSPARAM_DELETED:
-                case STATUSPARAM_NOTIFYMELIST:
+                case MOD_BOOKING_STATUSPARAM_RESERVED:
+                case MOD_BOOKING_STATUSPARAM_NOTBOOKED:
+                case MOD_BOOKING_STATUSPARAM_DELETED:
+                case MOD_BOOKING_STATUSPARAM_NOTIFYMELIST:
                     if ($this->priceitem = price::get_price('option', $settings->id, $buyforuser)) {
 
                         $cartitem = new cartitem($settings->id,
-                                         $settings->text,
+                                         $settings->get_title_with_prefix(),
                                          $this->priceitem['price'],
                                          $this->priceitem['currency'],
                                          'mod_booking',

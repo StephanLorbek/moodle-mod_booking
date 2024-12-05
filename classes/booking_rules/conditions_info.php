@@ -40,12 +40,11 @@ class conditions_info {
      * Add form fields to mform.
      *
      * @param MoodleQuickForm $mform
-     * @param array $repeateloptions
-     * @param array $ajaxformdata
+     * @param ?array $ajaxformdata
      * @return void
      */
     public static function add_conditions_to_mform(MoodleQuickForm &$mform,
-        array &$ajaxformdata = null) {
+        ?array &$ajaxformdata = null) {
 
         $conditions = self::get_conditions();
 
@@ -61,16 +60,12 @@ class conditions_info {
             $conditionsforselect[$shortclassname] = $condition->get_name_of_condition();
         }
 
+        $buttonargs = ['style' => 'visibility:hidden;'];
         $mform->registerNoSubmitButton('btn_bookingruleconditiontype');
-        $buttonargs = array('style' => 'visibility:hidden;');
-        $categoryselect = [
-            $mform->createElement('select', 'bookingruleconditiontype',
-            get_string('bookingrulecondition', 'mod_booking'), $conditionsforselect),
-            $mform->createElement('submit', 'btn_bookingruleconditiontype', get_string('bookingrulecondition', 'mod_booking'),
-                $buttonargs)
-        ];
-        $mform->addGroup($categoryselect, 'bookingruleconditiontype', get_string('bookingrulecondition', 'mod_booking'),
-            [' '], false);
+        $mform->addElement('select', 'bookingruleconditiontype',
+            get_string('bookingrulecondition', 'mod_booking'), $conditionsforselect);
+        $mform->addElement('submit', 'btn_bookingruleconditiontype',
+            get_string('bookingrulecondition', 'mod_booking'), $buttonargs);
         $mform->setType('btn_bookingruleconditiontype', PARAM_NOTAGS);
 
         if (isset($ajaxformdata['bookingruleconditiontype'])) {
@@ -98,7 +93,7 @@ class conditions_info {
         // We just want filenames, as they are also the classnames.
         foreach ($filelist as $filepath) {
             $path = pathinfo($filepath);
-            $filename = 'mod_booking\booking_rules\conditions\\' . $path['filename'];
+            $filename = 'mod_booking\\booking_rules\\conditions\\' . $path['filename'];
 
             // We instantiate all the classes, because we need some information.
             if (class_exists($filename)) {
@@ -118,7 +113,7 @@ class conditions_info {
     public static function get_condition(string $conditionname) {
         global $CFG;
 
-        $filename = 'mod_booking\booking_rules\conditions\\' . $conditionname;
+        $filename = 'mod_booking\\booking_rules\\conditions\\' . $conditionname;
 
         // We instantiate all the classes, because we need some information.
         if (class_exists($filename)) {

@@ -50,9 +50,11 @@ class subbookingsdeleteform extends dynamic_form {
         }
 
         $mform->addElement('hidden', 'cmid', $ajaxformdata['cmid']);
+        $mform->addElement('hidden', 'name', $ajaxformdata['name']);
+        $mform->addElement('hidden', 'optionid', $ajaxformdata['optionid']);
 
         $mform->addElement('html', '<div><p>'
-            . get_string('deletebookingrule_confirmtext', 'mod_booking')
+            . get_string('deletebookingruleconfirmtext', 'mod_booking')
             . '</p><p class="text-danger font-weight-bold">'
             . $ajaxformdata['name']
             . '</p></div>');
@@ -66,7 +68,7 @@ class subbookingsdeleteform extends dynamic_form {
         $data = parent::get_data();
 
         // Delete the rule by its ID.
-        subbookings_info::delete_subbooking((int)$data->id);
+        subbookings_info::delete_subbooking((int)$data->id, $data->cmid, $data->optionid);
 
         return $data;
     }
@@ -83,10 +85,12 @@ class subbookingsdeleteform extends dynamic_form {
     }
 
     /**
-     * Validate dates.
+     * Form validation.
      *
-     * {@inheritdoc}
-     * @see moodleform::validation()
+     * @param array $data
+     * @param array $files
+     * @return array
+     *
      */
     public function validation($data, $files) {
         $errors = [];

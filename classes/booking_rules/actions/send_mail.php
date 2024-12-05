@@ -16,9 +16,8 @@
 
 namespace mod_booking\booking_rules\actions;
 
-use mod_booking\booking_rules\booking_rule;
 use mod_booking\booking_rules\booking_rule_action;
-use mod_booking\singleton_service;
+use mod_booking\placeholders\placeholders_info;
 use mod_booking\task\send_mail_by_rule_adhoc;
 use MoodleQuickForm;
 use stdClass;
@@ -68,6 +67,7 @@ class send_mail implements booking_rule_action {
         $this->rulejson = $json;
         $jsonobject = json_decode($json);
         $actiondata = $jsonobject->actiondata;
+
         $this->subject = $actiondata->subject;
         $this->template = $actiondata->template;
     }
@@ -76,7 +76,7 @@ class send_mail implements booking_rule_action {
      * Only customizable functions need to return their necessary form elements.
      *
      * @param MoodleQuickForm $mform
-     * @param int $optionid
+     * @param array $repeateloptions
      * @return void
      */
     public function add_action_to_mform(MoodleQuickForm &$mform, array &$repeateloptions) {
@@ -90,22 +90,33 @@ class send_mail implements booking_rule_action {
         $mform->addElement('editor', 'action_send_mail_template',
             get_string('message'), ['rows' => 15], ['subdirs' => 0, 'maxfiles' => 0, 'context' => null]);
 
-        $mform->addElement('html', get_string('helptext:placeholders', 'mod_booking'));
+        // Placeholders info text.
+        $placeholders = placeholders_info::return_list_of_placeholders();
+        $mform->addElement('html', get_string('helptext:placeholders', 'mod_booking', $placeholders));
 
     }
 
     /**
      * Get the name of the rule action
-     * @param boolean $localized
+     * @param bool $localized
      * @return string the name of the rule action
      */
     public function get_name_of_action($localized = true) {
-        return get_string('send_mail', 'mod_booking');
+        return get_string('sendmail', 'mod_booking');
+    }
+
+    /**
+     * Is the booking rule action compatible with the current form data?
+     * @param array $ajaxformdata the ajax form data entered by the user
+     * @return bool true if compatible, else false
+     */
+    public function is_compatible_with_ajaxformdata(array $ajaxformdata = []) {
+        return true;
     }
 
     /**
      * Save the JSON for all sendmail_daysbefore rules defined in form.
-     * @param stdClass &$data form data reference
+     * @param stdClass $data form data reference
      */
     public function save_action(stdClass &$data) {
         global $DB;
@@ -128,7 +139,7 @@ class send_mail implements booking_rule_action {
 
     /**
      * Sets the rule defaults when loading the form.
-     * @param stdClass &$data reference to the default values
+     * @param stdClass $data reference to the default values
      * @param stdClass $record a record from booking_rules
      */
     public function set_defaults(stdClass &$data, stdClass $record) {
@@ -163,6 +174,9 @@ class send_mail implements booking_rule_action {
             'cmid' => $record->cmid,
             'customsubject' => $this->subject,
             'custommessage' => $this->template,
+            'installmentnr' => $record->payment_id ?? 0,
+            'duedate' => $record->datefield ?? 0,
+            'price' => $record->price ?? 0,
         ];
         $task->set_custom_data($taskdata);
         $task->set_userid($record->userid);

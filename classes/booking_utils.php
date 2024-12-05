@@ -14,19 +14,33 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace mod_booking;
-
-use html_writer;
-use mod_booking\utils\wb_payment;
-use mod_booking\event\bookingoption_updated;
-use moodle_url;
-use stdClass;
-
 /**
  * Booking utils.
  *
  * @package mod_booking
- * @copyright 2014 Andraž Prinčič, 2021 onwards - Wunderbyte GmbH
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Andraž Prinčič, 2021 onwards - Wunderbyte GmbH
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+namespace mod_booking;
+
+defined('MOODLE_INTERNAL') || die();
+
+use cache_helper;
+use html_writer;
+use mod_booking\event\bookingoption_updated;
+use moodle_url;
+use stdClass;
+
+require_once($CFG->dirroot.'/cohort/lib.php');
+
+/**
+ * Class for booking utils.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Andraž Prinčič, 2021 onwards - Wunderbyte GmbH
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class booking_utils {
@@ -41,7 +55,14 @@ class booking_utils {
      */
     public $bookingoption = null;
 
-    public function __construct($booking = null, $bookingoption = null) {
+    /**
+     * [Description for Constructor
+     *
+     * @param ?object $booking
+     * @param ?object $bookingoption
+     *
+     */
+    public function __construct(?object $booking = null, ?object $bookingoption = null) {
 
         if ($booking) {
             $this->booking = $booking;
@@ -52,13 +73,29 @@ class booking_utils {
 
     }
 
+    /**
+     * [Description for Get pretty duration
+     *
+     * @param mixed $seconds
+     *
+     * @return string
+     *
+     */
     public function get_pretty_duration($seconds) {
         return $this->pretty_duration($seconds);
     }
 
+    /**
+     * [Description for Pretty duration
+     *
+     * @param mixed $seconds
+     *
+     * @return string
+     *
+     */
     private function pretty_duration($seconds) {
-        $measures = array('days' => 24 * 60 * 60, 'hours' => 60 * 60, 'minutes' => 60);
-        $durationparts = array();
+        $measures = ['days' => 24 * 60 * 60, 'hours' => 60 * 60, 'minutes' => 60];
+        $durationparts = [];
         foreach ($measures as $label => $amount) {
             if ($seconds >= $amount) {
                 $howmany = floor($seconds / $amount);
@@ -73,10 +110,10 @@ class booking_utils {
      * Prepares the data to be sent with confirmation mail
      *
      * @param stdClass $settings
-     * @param stdClass $option
+     * @param ?stdClass $option
      * @return stdClass data to be sent via mail
      */
-    public function generate_params(stdClass $settings, stdClass $option = null): stdClass {
+    public function generate_params(stdClass $settings, ?stdClass $option = null): stdClass {
         global $DB, $CFG;
 
         $params = new stdClass();
@@ -86,13 +123,13 @@ class booking_utils {
 
         if (!is_null($option)) {
 
-            $teacher = $DB->get_records('booking_teachers', array('optionid' => $option->id));
+            $teacher = $DB->get_records('booking_teachers', ['optionid' => $option->id]);
 
             $i = 1;
 
             foreach ($teacher as $value) {
 
-                $user = $DB->get_record('user', array('id' => $value->userid),
+                $user = $DB->get_record('user', ['id' => $value->userid],
                         'firstname, lastname', IGNORE_MULTIPLE);
                 $params->{"teacher" . $i} = $user->firstname . ' ' . $user->lastname;
 
@@ -116,7 +153,7 @@ class booking_utils {
             $courselink = '';
             if ($option->courseid) {
                 $baseurl = $CFG->wwwroot;
-                $courselink = new moodle_url($baseurl . '/course/view.php', array('id' => $option->courseid));
+                $courselink = new moodle_url($baseurl . '/course/view.php', ['id' => $option->courseid]);
                 $courselink = html_writer::link($courselink, $courselink->out());
             }
 
@@ -175,15 +212,19 @@ class booking_utils {
      * @param object $booking the booking activity object
      * @param string $fieldname the name of the field that contains the custom text
      * @param object $params the booking details
+     * @param bool $urlencode
+     *
      * @return string
      */
     public function get_body($booking, $fieldname, $params, $urlencode = false) {
         $text = $booking->$fieldname;
         foreach ($params as $name => $value) {
-            if ($urlencode) {
-                $text = str_replace('{' . $name . '}', urlencode($value), $text);
-            } else {
-                $text = str_replace('{' . $name . '}', $value, $text);
+            if (!empty($value) && !empty($text)) {
+                if ($urlencode) {
+                    $text = str_replace('{' . $name . '}', urlencode($value), $text);
+                } else {
+                    $text = str_replace('{' . $name . '}', $value, $text);
+                }
             }
         }
         return $text;
@@ -191,8 +232,14 @@ class booking_utils {
 
     /**
      * Function to define reaction on changes of booking options and its sessions.
-     * @param $option
-     * @param $changes
+     *
+     * @param int $cmid
+     * @param stdClass $context
+     * @param int $optionid
+     * @param mixed $changes
+     *
+     * @return void
+     *
      * @throws \coding_exception
      */
     public function react_on_changes($cmid, $context, $optionid, $changes) {
@@ -204,23 +251,11 @@ class booking_utils {
         }
 
         $bo = singleton_service::get_instance_of_booking_option($cmid, $optionid);
-
-        // If changes concern only the add to calendar_field, we don't want to send a mail.
-        $index = null;
-        $addtocalendar = 0;
-        foreach ($changes as $key => $value) {
-            if (isset($value['fieldname']) && $value['fieldname'] == 'addtocalendar') {
-                $addtocalendar = $value['newvalue'];
-                $index = $key;
-            }
-        }
-        if ($index !== null) {
-            array_splice($changes, $key, 1);
-        }
+        $bookingsettings = singleton_service::get_instance_of_booking_settings_by_cmid($cmid);
+        $sendmail = $bookingsettings->sendmail ?? false;
 
         // If we still have changes, we can send the confirmation mail.
-        if (count($changes) > 0
-                && $bo->booking->settings->sendmail) {
+        if (count($changes) > 0 && $sendmail) {
             $bookinganswers = $bo->get_all_users_booked();
             if (!empty($bookinganswers)) {
                 foreach ($bookinganswers as $bookinganswer) {
@@ -230,22 +265,66 @@ class booking_utils {
             }
         }
 
-        // Todo: We could delete all calendar entries of this option here, if addtocalendar is 0.
-        // But we are not sure if it's a good idea.
+        $changes = $this->prepare_changes_array($changes);
 
-        // We trigger the event only if we have real changes OR if we set the calendar entry to 1.
-        if (count($changes) > 0 || $addtocalendar == 1) {
+        // We trigger the event only if we have changes.
+        if (count($changes) > 0) {
             // Also, we need to trigger the bookingoption_updated event, in order to update calendar entries.
-            $event = bookingoption_updated::create(array('context' => $context, 'objectid' => $optionid,
-                    'userid' => $USER->id));
+            $event = bookingoption_updated::create(
+                [
+                        'context' => $context,
+                        'objectid' => $optionid,
+                        'userid' => $USER->id,
+                        'relateduserid' => $USER->id,
+                        'other' => [
+                            'changes' => $changes ?? '',
+                        ],
+                ]
+            );
             $event->trigger();
+
+            cache_helper::purge_by_event('setbackeventlogtable');
         }
     }
 
     /**
+     * Convert the array to the expected format.
+     *
+     * @param array $changes
+     *
+     * @return array
+     *
+     */
+    private function prepare_changes_array(array $changes): array {
+
+        $newchanges = [];
+        foreach ($changes as $class => $change) {
+            if (empty($change)) {
+                continue;
+            }
+            if (isset($change['changes'])) {
+                foreach ($change['changes'] as $field => $subchange) {
+                    // For classes that return values of multiple fields.
+                    if (isset($subchange['changes'])) {
+                        // Is there something to check for?
+                        $newchanges[] = $subchange['changes'];
+                    } else {
+                        $newchanges[] = $change['changes'];
+                        break;
+                    }
+                }
+            }
+        }
+        return $newchanges;
+    }
+
+    /**
      * Helper function to check if a booking option has associated sessions (optiondates).
-     * @param $optionid int The id of a booking option.
+     *
+     * @param int $optionid int The id of a booking option.
+     *
      * @return bool
+     *
      * @throws \dml_exception
      */
     public static function booking_option_has_optiondates(int $optionid) {
@@ -261,275 +340,15 @@ class booking_utils {
     }
 
     /**
-     * Helper function to return a string and arrays containing all relevant customfields update changes.
-     * The string will be used to replace the {changes} placeholder in update mails.
-     * The returned arrays will have the prepared stdclasses for update and insert in booking_customfields table.
-     * @param $oldcustomfields
-     * @param $newcustomfields
-     */
-    public function booking_customfields_get_changes($oldcustomfields, $data) {
-
-        $updates = [];
-        $inserts = [];
-        $changes = [];
-        $deletes = [];
-
-        foreach ($data as $key => $value) {
-            if (strpos($key, 'customfieldid') !== false) {
-
-                $counter = (int)substr($key, -1);
-
-                // First check if the field existed before.
-                if ($value != 0 && $oldfield = $oldcustomfields[$value]) {
-
-                    // If the delete checkbox has been set, add to deletes.
-                    if ($data->{'deletecustomfield' . $counter} == 1) {
-                        $deletes[] = $value; // The ID of the custom field that needs to be deleted.
-
-                        // Also add to changes.
-                        $changes[] = ['info' => get_string('changeinfocfdeleted', 'booking'),
-                                      'oldname' => $oldfield->cfgname,
-                                      'oldvalue' => $oldfield->value];
-
-                        continue;
-                    }
-
-                    /* Custom field changes do not contain a 'fieldname' so they can easily be identified by the
-                     * mustache template (bookingoption_changes.mustache). They always will contain 'newname' and
-                     * 'newvalue'; 'oldname' and 'oldvalue' will only be included, if there has been a change. */
-
-                    $haschange = false;
-                    $currentchange = [];
-                    // Check if the name of the custom field has changed.
-                    if ($oldfield->cfgname != $data->{'customfieldname' . $counter}) {
-                        $currentchange = array_merge($currentchange,
-                            ['info' => get_string('changeinfocfchanged', 'booking'),
-                             'oldname' => $oldfield->cfgname,
-                             'newname' => $data->{'customfieldname' . $counter}]);
-                        $haschange = true;
-                    } else {
-                        // Do not add the old name, if there has been no change.
-                        $currentchange = array_merge($currentchange,
-                            ['newname' => $data->{'customfieldname' . $counter}]);
-                    }
-
-                    // Check if the value of the custom field has changed.
-                    if (!empty($data->{'customfieldvalue' . $counter}) &&
-                        $oldfield->value != $data->{'customfieldvalue' . $counter}) {
-                        $currentchange = array_merge($currentchange,
-                            ['info' => get_string('changeinfocfchanged', 'booking'),
-                             'oldvalue' => $oldfield->value,
-                             'newvalue' => $data->{'customfieldvalue' . $counter}]);
-                        $haschange = true;
-                    } else {
-                        // Do not add the old value, if there has been no change.
-                        $currentchange = array_merge($currentchange,
-                            ['newvalue' => $data->{'customfieldvalue' . $counter}]);
-                    }
-
-                    if ($haschange) {
-                        // Also add optionid, sessionid and fieldid (needed to create link via link.php).
-                        $currentchange = array_merge($currentchange,
-                            ['customfieldid' => $value,
-                             'optionid' => $this->bookingoption->option->id,
-                             'optiondateid' => $data->optiondateid]);
-
-                        // Add to changes.
-                        $changes[] = $currentchange;
-
-                        // Create custom field object and add to updates.
-                        $customfield = new stdClass();
-                        $customfield->id = $value;
-                        $customfield->bookingid = $this->booking->id;
-                        $customfield->optionid = $this->bookingoption->option->id;
-                        $customfield->optiondateid = $data->optiondateid;
-                        $customfield->cfgname = $data->{'customfieldname' . $counter};
-                        $customfield->value = $data->{'customfieldvalue' . $counter};
-
-                        $updates[] = $customfield;
-                    }
-                } else {
-                    // Create new custom field and add to inserts.
-                    if (!empty($this->booking) && !empty($this->bookingoption)) {
-                        if (!empty($data->{'customfieldname' . $counter})) {
-                            $customfield = new stdClass();
-                            $customfield->bookingid = $this->booking->id;
-                            $customfield->optionid = $this->bookingoption->option->id;
-                            $customfield->optiondateid = $data->optiondateid;
-                            $customfield->cfgname = $data->{'customfieldname' . $counter};
-                            $customfield->value = $data->{'customfieldvalue' . $counter};
-
-                            $inserts[] = $customfield;
-
-                            // Also add to changes.
-                            $changes[] = ['info' => get_string('changeinfocfadded', 'booking'),
-                                          'newname' => $data->{'customfieldname' . $counter},
-                                          'newvalue' => $data->{'customfieldvalue' . $counter},
-                                          'optionid' => $this->bookingoption->option->id,
-                                          'optiondateid' => $data->optiondateid];
-                        }
-                    }
-                }
-            }
-        }
-
-        return [
-                'changes' => $changes,
-                'inserts' => $inserts,
-                'updates' => $updates,
-                'deletes' => $deletes
-        ];
-    }
-
-    /**
-     * Helper function to return an array containing all relevant option update changes.
-     *
-     * @param $oldoption stdClass the original booking option object
-     * @param $newoption stdClass the new booking option object
-     * @return array an array containing the changes that have been made
-     */
-    public function booking_option_get_changes($oldoption, $newoption) {
-        $returnarry = [];
-
-        if (isset($oldoption->text)
-                && $oldoption->text != $newoption->text) {
-            $returnarry[] = [
-                    'info' => get_string('bookingoptiontitle', 'booking') . get_string('changeinfochanged', 'booking'),
-                    'fieldname' => 'bookingoptiontitle',
-                    'oldvalue' => $oldoption->text,
-                    'newvalue' => $newoption->text
-            ];
-        }
-        if (isset($oldoption->coursestarttime)
-                && $oldoption->coursestarttime != $newoption->coursestarttime) {
-            $returnarry[] = [
-                    'info' => get_string('coursestarttime', 'booking') . get_string('changeinfochanged', 'booking'),
-                    'fieldname' => 'coursestarttime',
-                    'oldvalue' => $oldoption->coursestarttime,
-                    'newvalue' => $newoption->coursestarttime
-            ];
-        }
-        if (isset($oldoption->courseendtime)
-                && $oldoption->courseendtime != $newoption->courseendtime) {
-            $returnarry[] = [
-                    'info' => get_string('courseendtime', 'booking') . get_string('changeinfochanged', 'booking'),
-                    'fieldname' => 'courseendtime',
-                    'oldvalue' => $oldoption->courseendtime,
-                    'newvalue' => $newoption->courseendtime
-            ];
-        }
-        if (isset($oldoption->location)
-                && $oldoption->location != $newoption->location) {
-            $returnarry[] = [
-                    'info' => get_string('location', 'booking') . get_string('changeinfochanged', 'booking'),
-                    'fieldname' => 'location',
-                    'oldvalue' => $oldoption->location,
-                    'newvalue' => $newoption->location
-            ];
-        }
-        if (isset($oldoption->institution)
-                && $oldoption->institution != $newoption->institution) {
-            $returnarry[] = [
-                    'info' => get_string('institution', 'booking') . get_string('changeinfochanged', 'booking'),
-                    'fieldname' => 'institution',
-                    'oldvalue' => $oldoption->institution,
-                    'newvalue' => $newoption->institution
-            ];
-        }
-        if (isset($oldoption->address)
-                && $oldoption->address != $newoption->address) {
-            $returnarry[] = [
-                    'info' => get_string('address', 'booking') . get_string('changeinfochanged', 'booking'),
-                    'fieldname' => 'address',
-                    'oldvalue' => $oldoption->address,
-                    'newvalue' => $newoption->address
-            ];
-        }
-        if (isset($oldoption->description)
-                && $oldoption->description != $newoption->description) {
-            $returnarry[] = [
-                    'info' => get_string('description', 'booking') . get_string('changeinfochanged', 'booking'),
-                    'fieldname' => 'description',
-                    'oldvalue' => $oldoption->description,
-                    'newvalue' => $newoption->description
-            ];
-        }
-        // We have to check for changed "adtocalendar"-value, because we need to trigger update event (but not send mail).
-        if (isset($oldoption->addtocalendar)
-                && $oldoption->addtocalendar != $newoption->addtocalendar) {
-            $returnarry[] = [
-                    'fieldname' => 'addtocalendar',
-                    'oldvalue' => $oldoption->addtocalendar,
-                    'newvalue' => $newoption->addtocalendar
-            ];
-        }
-        if (count($returnarry) > 0) {
-            return $returnarry;
-        } else {
-            return [];
-        }
-    }
-
-    /**
-     * Helper function to return an array containing all relevant session update changes.
-     *
-     * @param $oldoptiondate stdClass the original session object
-     * @param $newoptiondate stdClass the new session object
-     * @return array an array containing the changes that have been made
-     */
-    public function booking_optiondate_get_changes($oldoptiondate, $newoptiondate) {
-        $changes = [];
-
-        if (isset($oldoptiondate->coursestarttime)
-            && $oldoptiondate->coursestarttime != $newoptiondate->coursestarttime) {
-            $changes[] = [
-                'info' => get_string('coursestarttime', 'booking') . get_string('changeinfochanged', 'booking'),
-                'fieldname' => 'coursestarttime',
-                'oldvalue' => $oldoptiondate->coursestarttime,
-                'newvalue' => $newoptiondate->coursestarttime
-            ];
-        }
-
-        if (isset($oldoptiondate->courseendtime)
-            && $oldoptiondate->courseendtime != $newoptiondate->courseendtime) {
-            $changes[] = [
-                'info' => get_string('courseendtime', 'booking') . get_string('changeinfochanged', 'booking'),
-                'fieldname' => 'courseendtime',
-                'oldvalue' => $oldoptiondate->courseendtime,
-                'newvalue' => $newoptiondate->courseendtime
-            ];
-        }
-
-        return [
-            'changes' => $changes
-        ];
-    }
-
-    private function col_status($values) {
-        switch ($values->status) {
-            case 1:
-                return get_string('status_complete', 'booking');
-            case 2:
-                return get_string('status_incomplete', 'booking');
-            case 3:
-                return get_string('status_noshow', 'booking');
-            case 4:
-                return get_string('status_failed', 'booking');
-            case 5:
-                return get_string('status_unknown', 'booking');
-            case 6:
-                return get_string('status_attending', 'booking');
-            case 0:
-            default:
-                return '';
-        }
-    }
-
-    /**
      * Helper function to hide all option user events.
+     *
      * We need this if we switch from option to multisession.
+     *
+     * @param int $optionid
+     *
+     * @return bool
      */
-    public function booking_hide_option_userevents ($optionid) {
+    public function booking_hide_option_userevents($optionid) {
         global $DB;
         $userevents = $DB->get_records('booking_userevents', ['optionid' => $optionid, 'optiondateid' => null]);
 
@@ -541,13 +360,19 @@ class booking_utils {
                 return false;
             }
         }
+
+        return true;
     }
 
     /**
      * Helper function to show all option user events.
      * We need this if we switch from multisession to option.
+     *
+     * @param int $optionid
+     *
+     * @return bool
      */
-    public function booking_show_option_userevents ($optionid) {
+    public function booking_show_option_userevents($optionid) {
         global $DB;
         $userevents = $DB->get_records('booking_userevents', ['optionid' => $optionid, 'optiondateid' => null]);
 
@@ -559,25 +384,34 @@ class booking_utils {
                 return false;
             }
         }
+
+        return true;
     }
 
     /**
      * Helper function to generate a subscription link to the Moodle calendar.
+     *
      * The calendar export time range can be set in Site_admin > Appearance > Calendar.
      * Use $eventparam to specify the event type to be exported (user events are the default).
      *
      * @param stdClass $user the user the calendar link is for
      * @param string $eventparam ('all' | 'categories' | 'courses' | 'groups' | 'user')
+     *
      * @return string the subscription link
      */
-    public function booking_generate_calendar_subscription_link ($user, $eventparam = 'user') {
+    public function booking_generate_calendar_subscription_link($user, $eventparam = 'user') {
+
+        if (!$user) {
+            return '';
+        }
+
         $authtoken = $this->calendar_get_export_token($user);
 
         $linkparams = [
             'userid' => $user->id,
             'authtoken' => $authtoken,
             'preset_what' => $eventparam,
-            'preset_time' => 'custom'
+            'preset_time' => 'custom',
         ];
         $subscriptionlink = new moodle_url('/calendar/export_execute.php', $linkparams);
 
@@ -596,12 +430,17 @@ class booking_utils {
      *
      * @param stdClass $fromform
      * @param booking_option $bookingoption
-     * @param $context
+     * @param mixed $context
+     *
      * @return stdClass
      * @throws \coding_exception
      * @throws \dml_exception
      */
-    public static function book_cohort_or_group_members(stdClass $fromform, booking_option $bookingoption, $context): stdClass {
+    public static function book_cohort_or_group_members(
+        stdClass $fromform,
+        booking_option $bookingoption,
+        $context
+    ): stdClass {
 
         global $DB;
 
@@ -649,7 +488,7 @@ class booking_utils {
                         $notenrolledusersarray[] = $user;
                         continue;
                     }
-                    if (!$bookingoption->user_submit_response($user)) {
+                    if (!$bookingoption->user_submit_response($user, 0, 0, 0, MOD_BOOKING_VERIFIED)) {
                         // Track users where subscription failed because of different reasons.
                         $notsubscribedusersarray[] = $user;
                     } else {
@@ -682,7 +521,7 @@ class booking_utils {
                         $notenrolledusersarray[] = $user;
                         continue;
                     }
-                    if (!$bookingoption->user_submit_response($user)) {
+                    if (!$bookingoption->user_submit_response($user, 0, 0, 0, MOD_BOOKING_VERIFIED)) {
                         // Track users where subscription failed because of different reasons.
                         $notsubscribedusersarray[] = $user;
                     } else {
@@ -704,7 +543,9 @@ class booking_utils {
 
     /**
      * Copied from core_calendar > lib.php.
+     *
      * Get the auth token for exporting the given user calendar.
+     *
      * @param stdClass $user The user to export the calendar for
      *
      * @return string The export token.

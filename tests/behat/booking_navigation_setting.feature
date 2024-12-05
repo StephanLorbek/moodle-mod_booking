@@ -26,59 +26,61 @@ Feature: Configure and use booking's pagination and perform filtering - as a tea
     And I create booking option "Booking Option 3" in "My booking"
     And I create booking option "Booking Option 4" in "My booking"
     And I create booking option "Booking Option 5" in "My booking"
+    And I change viewport size to "1366x10000"
 
   @javascript
   Scenario: Configure pagination and navigate pages with list of booking options
-    Given I log in as "teacher1"
-    When I am on "Course 1" course homepage
-    Then I follow "My booking"
-    And I should see "Booking Option 1" in the "#allbookingoptionstable_r1" "css_element"
-    And I should see "Booking Option 5" in the "#allbookingoptionstable_r5" "css_element"
-    And "//nav[@aria-label='Page navigation']" "xpath_element" should not exist
-    And I follow "Settings"
-    And I follow "Miscellaneous settings"
+    Given I am on the "My booking" Activity page logged in as teacher1
+    And I should see "Booking Option 1" in the ".allbookingoptionstable_r1" "css_element"
+    And I should see "Booking Option 5" in the ".allbookingoptionstable_r5" "css_element"
+    And "//div[contains(@class, 'allbookingoptionstable')]//ul[@class='pagination']" "xpath_element" should not exist
+    When I follow "Settings"
+    And I follow "Advanced options"
     And I wait "1" seconds
     And I set the field "paginationnum" to "3"
     And I press "Save and display"
-    And I wait "1" seconds
-    And "//nav[@aria-label='Page navigation']" "xpath_element" should exist
-    And I should see "1" in the ".allbookingoptionstable .pagination" "css_element"
+    And I wait until the page is ready
+    And "//div[contains(@class, 'allbookingoptionstable')]//ul[@class='pagination']" "xpath_element" should exist
+    Then I should see "1" in the ".allbookingoptionstable .pagination" "css_element"
     And I should see "2" in the ".allbookingoptionstable .pagination" "css_element"
-    And I should see "Booking Option 1" in the "#allbookingoptionstable_r1" "css_element"
-    And I should see "Booking Option 3" in the "#allbookingoptionstable_r3" "css_element"
+    And I should see "Booking Option 1" in the ".allbookingoptionstable_r1" "css_element"
+    And I should see "Booking Option 3" in the ".allbookingoptionstable_r3" "css_element"
     And I should not see "Booking Option 4" in the ".allbookingoptionstable" "css_element"
     And I should not see "Booking Option 5" in the ".allbookingoptionstable" "css_element"
     ## Goto page 2
-    ## And I click on "2" "link" in the "//nav[@aria-label='Page navigation']" "xpath_element"
-    And I click on "2" "link" in the ".allbookingoptionstable .pagination" "css_element"
-    And I should see "Booking Option 4" in the "#allbookingoptionstable_r1" "css_element"
-    And I should see "Booking Option 5" in the "#allbookingoptionstable_r2" "css_element"
+    And I click on "2" "text" in the ".allbookingoptionstable .pagination" "css_element"
+    And I should see "Booking Option 4" in the ".allbookingoptionstable_r1" "css_element"
+    And I should see "Booking Option 5" in the ".allbookingoptionstable_r2" "css_element"
 
   @javascript
   Scenario: Filter of list of booking options including if pagination
-    Given I log in as "teacher1"
-    When I am on "Course 1" course homepage
-    Then I follow "My booking"
-    And I should see "Booking Option 1" in the "#allbookingoptionstable_r1" "css_element"
-    And I should see "Booking Option 5" in the "#allbookingoptionstable_r5" "css_element"
-    And "//nav[@aria-label='Page navigation']" "xpath_element" should not exist
-    And I wait "1" seconds
+    Given I am on the "My booking" Activity page logged in as teacher1
+    And I wait until the page is ready
+    And I should see "Booking Option 1" in the ".allbookingoptionstable_r1" "css_element"
+    And I should see "Booking Option 5" in the ".allbookingoptionstable_r5" "css_element"
+    And "//div[contains(@class, 'allbookingoptionstable')]//ul[@class='pagination']" "xpath_element" should not exist
+    ## Set filter without pagination
     And I set the field "Search" in the ".allbookingoptionstable" "css_element" to "Option 4"
-    Then I should see "Booking Option 4" in the "#allbookingoptionstable_r1" "css_element"
+    And I wait "1" seconds
+    And I should see "Booking Option 4" in the ".allbookingoptionstable_r1" "css_element"
+    And I should see "1 of 5 records found" in the ".allbookingoptionstable .wb-records-count-label" "css_element"
     And I set the field "Search" in the ".allbookingoptionstable" "css_element" to ""
-    And I follow "Settings"
-    And I follow "Miscellaneous settings"
+    ## Set pagination witout filter
+    When I follow "Settings"
+    And I follow "Advanced options"
     And I wait "1" seconds
     And I set the field "paginationnum" to "3"
     And I press "Save and display"
-    And I wait "1" seconds
-    And "//nav[@aria-label='Page navigation']" "xpath_element" should exist
-    And I should see "1" in the ".allbookingoptionstable .pagination" "css_element"
+    And I wait until the page is ready
+    And "//div[contains(@class, 'allbookingoptionstable')]//ul[@class='pagination']" "xpath_element" should exist
+    Then I should see "1" in the ".allbookingoptionstable .pagination" "css_element"
     And I should see "2" in the ".allbookingoptionstable .pagination" "css_element"
-    And I should see "Booking Option 1" in the "#allbookingoptionstable_r1" "css_element"
-    And I should see "Booking Option 3" in the "#allbookingoptionstable_r3" "css_element"
+    And I should see "Booking Option 1" in the ".allbookingoptionstable_r1" "css_element"
+    And I should see "Booking Option 3" in the ".allbookingoptionstable_r3" "css_element"
     And I should not see "Booking Option 4" in the ".allbookingoptionstable" "css_element"
     And I should not see "Booking Option 5" in the ".allbookingoptionstable" "css_element"
+    ## Set search filter together with pagination
     And I set the field "Search" in the ".allbookingoptionstable" "css_element" to "Option 4"
-    Then I should see "Booking Option 4" in the "#allbookingoptionstable_r1" "css_element"
-    And "//nav[@aria-label='Page navigation']" "xpath_element" should exist
+    And I should see "Booking Option 4" in the ".allbookingoptionstable_r1" "css_element"
+    And I should see "1 of 5 records found" in the ".allbookingoptionstable .wb-records-count-label" "css_element"
+    And "//div[contains(@class, 'allbookingoptionstable')]//ul[@class='pagination']" "xpath_element" should not exist

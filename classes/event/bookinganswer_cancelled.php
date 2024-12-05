@@ -24,6 +24,9 @@
  */
 namespace mod_booking\event;
 
+use mod_booking\singleton_service;
+use stdClass;
+
 /**
  * The bookinganswer_cancelled event.
  *
@@ -34,31 +37,71 @@ namespace mod_booking\event;
  */
 class bookinganswer_cancelled extends \core\event\base {
 
+    /**
+     * Init
+     *
+     * @return void
+     *
+     */
     protected function init() {
         $this->data['crud'] = 'u';
         $this->data['edulevel'] = self::LEVEL_PARTICIPATING;
         $this->data['objecttable'] = 'booking_answers';
     }
 
+    /**
+     * Get name
+     *
+     * @return string
+     *
+     */
     public static function get_name() {
-        return get_string('bookinganswer_cancelled', 'booking');
+        return get_string('bookinganswercancelled', 'mod_booking');
     }
 
+    /**
+     * Get description
+     *
+     * @return string
+     *
+     */
     public function get_description() {
 
         $userid = $this->data['userid']; // The user who DID the cancellation.
         $relateduserid = $this->data['relateduserid']; // Affected user - the user who was cancelled from the option.
         $optionid = $this->data['objectid']; // The option id.
 
+        // TODO: Gute Description machen.
+
+        $user = singleton_service::get_instance_of_user((int) $userid);
+        $relateduser = singleton_service::get_instance_of_user((int) $relateduserid);
+        $settings = singleton_service::get_instance_of_booking_option_settings((int) $optionid);
+
+        $a = new stdClass();
+        $a->user = $user->firstname . " " . $user->lastname . " (ID: " . $userid . ")";
+        $a->relateduser = $relateduser->firstname . " " . $relateduser->lastname . " (ID: " . $relateduserid . ")";
+        $a->title = $settings->get_title_with_prefix() . " (ID: " . $optionid . ")";
+
+        $extrainfo = '';
+        if (!empty($this->data['other']['extrainfo'])) {
+            $extrainfo = " (" . $this->data['other']['extrainfo'] . ")";
+        }
+
         if ($userid == $relateduserid) {
-            return "The user with id $relateduserid cancelled his booking of the option with id $optionid.";
+            return get_string('eventdesc:bookinganswercancelledself', 'mod_booking', $a) . $extrainfo;
         } else {
-            return "The user with id $relateduserid was removed from the option with id $optionid by user with id $userid.";
+            return get_string('eventdesc:bookinganswercancelled', 'mod_booking', $a) . $extrainfo;
         }
     }
 
+    /**
+     * Get_url
+     *
+     * @return \moodle_url
+     *
+     */
     public function get_url() {
         return new \moodle_url('/mod/booking/subscribeusers.php',
-                array('id' => $this->contextinstanceid, 'optionid' => $this->objectid));
+                ['id' => $this->contextinstanceid, 'optionid' => $this->objectid]);
     }
 }

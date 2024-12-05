@@ -24,11 +24,14 @@
 
 namespace mod_booking\output;
 
+use mod_booking\booking_option;
 use moodle_exception;
 use renderer_base;
 use renderable;
 use templatable;
-use mod_booking\dates_handler;
+use mod_booking\option\dates_handler;
+use mod_booking\price;
+use mod_booking\singleton_service;
 
 /**
  * This class prepares data for displaying a booking instance
@@ -38,7 +41,6 @@ use mod_booking\dates_handler;
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class col_coursestarttime implements renderable, templatable {
-
     /** @var array $datestrings */
     public $datestrings = null;
 
@@ -48,15 +50,25 @@ class col_coursestarttime implements renderable, templatable {
     /** @var bool $showcollapsebtn */
     public $showcollapsebtn = null;
 
+    /** @var bool $selflearningcourse */
+    public $selflearningcourse = null;
+
+    /** @var string $duration */
+    public $duration = null;
+
+    /** @var string $timeremaining */
+    public $timeremaining = null;
+
     /**
-     * Constructor.
+     * Constructor
      *
-     * @param mod_booking\booking booking instance
      * @param int $optionid
-     * @param int $cmid course module id of the booking instance
+     * @param object|null $booking booking instance
+     * @param int|null $cmid course module id of the booking instance
      * @param bool $collapsed set to true, if dates should be collapsed
+     *
      */
-    public function __construct($optionid, $booking=null, $cmid = null, $collapsed = true) {
+    public function __construct($optionid, $booking = null, $cmid = null, $collapsed = true) {
 
         if (empty($booking) && empty($cmid)) {
             throw new moodle_exception('Error: either booking instance or cmid have to be provided.');
@@ -64,23 +76,58 @@ class col_coursestarttime implements renderable, templatable {
             $cmid = $booking->cm->id;
         }
 
+        $settings = singleton_service::get_instance_of_booking_option_settings($optionid);
+
+        if (!empty($settings->selflearningcourse)) {
+            $ba = singleton_service::get_instance_of_booking_answers($settings);
+            $buyforuser = price::return_user_to_buy_for();
+            if (isset($ba->usersonlist[$buyforuser->id])) {
+                $timebooked = $ba->usersonlist[$buyforuser->id]->timecreated;
+                $timeremainingsec = $timebooked + $settings->duration - time();
+                $this->timeremaining = format_time($timeremainingsec);
+            }
+
+            $this->selflearningcourse = true;
+            $this->duration = format_time($settings->duration);
+        }
+
         $this->optionid = $optionid;
         $this->datestrings = dates_handler::return_array_of_sessions_simple($optionid);
 
+        $maxdates = get_config('booking', 'collapseshowsettings') ?? 2; // Hardcoded fallback on two.
+
         // Show a collapse button for the dates.
-        if (!empty($this->datestrings) && count($this->datestrings) > 2 && $collapsed == true) {
+        if (!empty($this->datestrings) && count($this->datestrings) > $maxdates && $collapsed == true) {
             $this->showcollapsebtn = true;
         }
     }
 
+    /**
+     * Export for template
+     *
+     * @param renderer_base $output
+     *
+     * @return array
+     *
+     */
     public function export_for_template(renderer_base $output) {
+
         if (!$this->datestrings) {
-            return [];
+            if (!empty($this->selflearningcourse)) {
+                $returnarr['selflearningcourse'] = $this->selflearningcourse;
+                $returnarr['duration'] = $this->duration;
+                if (!empty($this->timeremaining)) {
+                    $returnarr['timeremaining'] = $this->timeremaining;
+                }
+                return $returnarr;
+            } else {
+                return [];
+            }
         }
 
         $returnarr = [
             'optionid' => $this->optionid,
-            'datestrings' => $this->datestrings
+            'datestrings' => $this->datestrings,
         ];
 
         if (!empty($this->showcollapsebtn)) {

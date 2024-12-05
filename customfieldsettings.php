@@ -21,6 +21,7 @@
  * @copyright 2017 David Bogner, http://www.edulabs.org
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 
@@ -29,7 +30,7 @@ require_login(0, false);
 
 $pageurl = new moodle_url('/mod/booking/customfieldsettings.php');
 $PAGE->set_url($pageurl);
-admin_externalpage_setup('modbookingcustomfield', '', null, '', array('pagelayout' => 'report'));
+admin_externalpage_setup('modbookingcustomfield', '', null, '', ['pagelayout' => 'report']);
 $PAGE->set_title(
         format_string($SITE->shortname) . ': ' . get_string('customfieldconfigure', 'booking'));
 

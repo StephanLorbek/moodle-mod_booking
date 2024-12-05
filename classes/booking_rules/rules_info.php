@@ -25,7 +25,12 @@
 
 namespace mod_booking\booking_rules;
 
-use Exception;
+use context;
+use context_module;
+use dml_exception;
+use context_system;
+use mod_booking\local\templaterule;
+use mod_booking\singleton_service;
 use MoodleQuickForm;
 use stdClass;
 
@@ -37,18 +42,33 @@ use stdClass;
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class rules_info {
+    /**
+     * Collect events to execute them at the end of the request.
+     *
+     * @var array
+     */
+    public static $rulestoexecute = [];
+
+    /**
+     * Collect events to execute them at the end of the request.
+     *
+     * @var array
+     */
+    public static $eventstoexecute = [];
 
     /**
      * Add form fields to mform.
      *
      * @param MoodleQuickForm $mform
      * @param array $repeateloptions
-     * @param array $ajaxformdata
+     * @param ?array $ajaxformdata
      * @return void
      */
-    public static function add_rules_to_mform(MoodleQuickForm &$mform,
+    public static function add_rules_to_mform(
+        MoodleQuickForm &$mform,
         array &$repeateloptions,
-        array &$ajaxformdata = null) {
+        ?array &$ajaxformdata = null
+    ) {
 
         // First, get all the type of rules there are.
         $rules = self::get_rules();
@@ -62,19 +82,39 @@ class rules_info {
             $rulesforselect[$shortclassname] = $rule->get_name_of_rule();
         }
 
+        $mform->addElement('hidden', 'contextid');
+        $mform->setType('contextid', PARAM_INT);
+
         // The custom name of the role has to be at this place, but every rule will implement save and set of rule_name.
-        $mform->addElement('text', 'rule_name',
-            get_string('rule_name', 'mod_booking'), ['size' => '50']);
+        $mform->addElement(
+            'text',
+            'rule_name',
+            get_string('rulename', 'mod_booking'),
+            ['size' => '50']
+        );
+        $mform->setType('rule_name', PARAM_TEXT);
         $repeateloptions['rule_name']['type'] = PARAM_TEXT;
 
+        $templates = templaterule::get_template_rules();
+        $buttonargs = ['class' => 'd-none'];
+
+        $mform->registerNoSubmitButton('btn_bookingruletemplates');
+        $mform->addElement('select', 'bookingruletemplate',
+              get_string('bookingruletemplates', 'mod_booking'), $templates);
+        $mform->addElement('submit', 'btn_bookingruletemplates',
+              get_string('bookingruletemplates', 'mod_booking'), $buttonargs);
+        $mform->setType('btn_bookingruletemplates', PARAM_NOTAGS);
+
+        if (has_capability('mod/booking:manageoptiontemplates', context_system::instance())) {
+            $mform->addElement('advcheckbox', 'useastemplate',
+                get_string('bookinguseastemplate', 'mod_booking'));
+        }
+
         $mform->registerNoSubmitButton('btn_bookingruletype');
-        $buttonargs = array('style' => 'visibility:hidden;');
-        $categoryselect = [
-            $mform->createElement('select', 'bookingruletype',
-            get_string('bookingrule', 'mod_booking'), $rulesforselect),
-            $mform->createElement('submit', 'btn_bookingruletype', get_string('bookingrule', 'mod_booking'), $buttonargs)
-        ];
-        $mform->addGroup($categoryselect, 'bookingruletype', get_string('bookingrule', 'mod_booking'), [' '], false);
+        $mform->addElement('select', 'bookingruletype',
+            get_string('bookingrule', 'mod_booking'), $rulesforselect);
+        $mform->addElement('submit', 'btn_bookingruletype',
+            get_string('bookingrule', 'mod_booking'), $buttonargs);
         $mform->setType('btn_bookingruletype', PARAM_NOTAGS);
 
         if (isset($ajaxformdata['bookingruletype'])) {
@@ -117,7 +157,7 @@ class rules_info {
         // We just want filenames, as they are also the classnames.
         foreach ($filelist as $filepath) {
             $path = pathinfo($filepath);
-            $filename = 'mod_booking\booking_rules\rules\\' . $path['filename'];
+            $filename = 'mod_booking\\booking_rules\\rules\\' . $path['filename'];
 
             // We instantiate all the classes, because we need some information.
             if (class_exists($filename)) {
@@ -136,7 +176,7 @@ class rules_info {
      */
     public static function get_rule(string $rulename) {
 
-        $filename = 'mod_booking\booking_rules\rules\\' . $rulename;
+        $filename = 'mod_booking\\booking_rules\\rules\\' . $rulename;
 
         // We instantiate all the classes, because we need some information.
         if (class_exists($filename)) {
@@ -164,6 +204,8 @@ class rules_info {
         // If we have an ID, we retrieve the right rule from DB.
         $record = $DB->get_record('booking_rules', ['id' => $data->id]);
 
+        $data->contextid = $record->contextid;
+
         $rule = self::get_rule($record->rulename);
 
         $rulejsonobject = json_decode($record->rulejson);
@@ -172,17 +214,16 @@ class rules_info {
         $action = actions_info::get_action($rulejsonobject->actionname);
 
         // These function just add their bits to the object.
+        $data->useastemplate = $record->useastemplate;
         $condition->set_defaults($data, $record);
         $action->set_defaults($data, $record);
         $rule->set_defaults($data, $record);
-
         return (object)$data;
-
     }
 
     /**
      * Save all booking rules.
-     * @param stdClass &$data reference to the form data
+     * @param stdClass $data reference to the form data
      * @return void
      */
     public static function save_booking_rule(stdClass &$data) {
@@ -226,22 +267,39 @@ class rules_info {
     /**
      * After an option has been added or updated,
      * we need to check if any rules need to be applied or changed.
+     * Also, after a user has booked we run this.
      * @param int $optionid
+     * @param int $userid
+     * @return void
+     * @throws dml_exception
      */
-    public static function execute_rules_for_option(int $optionid) {
+    public static function execute_rules_for_option(int $optionid, int $userid = 0) {
         global $DB;
+
+        $settings = singleton_service::get_instance_of_booking_option_settings($optionid);
+        if (!$cmid = $settings->cmid) {
+            return;
+        }
+
+        $context = context_module::instance($cmid);
+        $contextid = $context->id;
 
         // Only fetch rules which need to be reapplied. At the moment, it's just one.
         // Eventbased rules don't have to be reapplied.
-        if ($records = $DB->get_records('booking_rules', ['rulename' => 'rule_daysbefore'])) {
+        if ($records = booking_rules::get_list_of_saved_rules_by_context($contextid, '')) {
             foreach ($records as $record) {
+                if ($record->rulename != 'rule_daysbefore') {
+                    continue;
+                }
+
                 if (!$rule = self::get_rule($record->rulename)) {
                     continue;
                 }
                 // Important: Load the rule data from JSON into the rule instance.
                 $rule->set_ruledata($record);
+
                 // Now the rule can be executed.
-                $rule->execute($optionid);
+                $rule->execute($optionid, $userid);
             }
         }
     }
@@ -275,5 +333,148 @@ class rules_info {
     public static function delete_rule(int $ruleid) {
         global $DB;
         $DB->delete_records('booking_rules', ['id' => (int)$ruleid]);
+    }
+
+    /**
+     * Execute rules for event.
+     *
+     * @param \core\event\base $event
+     *
+     * @return void
+     *
+     */
+    public static function collect_rules_for_execution(\core\event\base $event) {
+
+        $data = $event->get_data();
+
+        // Check if rule is from booking plugin or another.
+        if ($data['component'] !== 'mod_booking') {
+            if (!self::proceed_with_event($event, $data)) {
+                return;
+            };
+        }
+        // Triggered again with optionid 1 ??
+        $optionid = $event->objectid ?? $data['other']['itemid'] ?? 0;
+        $eventname = "\\" . get_class($event);
+
+        $contextid = $event->contextid;
+        $records = booking_rules::get_list_of_saved_rules_by_context($contextid, $eventname);
+
+        // Now we check all the existing rules from booking.
+        foreach ($records as $record) {
+            // TODO this needs to be updated: Maybe rulename with namespace from event.
+            $rule = self::get_rule($record->rulename);
+
+            // THIS is the place where we need to add event data to the rulejson!
+            $ruleobj = json_decode($record->rulejson);
+
+            $ruleobj->datafromevent = $data;
+            // We save rulejson again with added event data.
+            $record->rulejson = json_encode($ruleobj);
+            // Save it into the rule.
+            $rule->set_ruledata($record);
+
+            // We only execute if the rule in question listens to the right event.
+            if (!empty($rule->boevent)) {
+                if ($data['eventname'] == $rule->boevent) {
+                    self::$rulestoexecute[] = [
+                        'optionid' => $optionid,
+                        'rule' => $rule,
+                        'ruleid' => $rule->ruleid,
+                    ];
+                }
+            }
+        }
+    }
+
+    /**
+     * Run through all the collected events, filter them and execute them.
+     *
+     * @return void     *
+     */
+    public static function filter_rules_and_execute() {
+
+        // 1. Determine which rules exclude each other and delete those rules.
+        // 2. Execute remaing rules.
+
+        $allrules = self::$rulestoexecute;
+
+        if (empty($allrules)) {
+            return;
+        }
+
+        $rulestoexecute = $allrules;
+
+        foreach ($allrules as $ruleid => $rulearray) {
+            // Run through all the excluded rules of this array and unset them.
+            $rule = $rulearray['rule'];
+            $ruleobject = json_decode($rule->rulejson);
+            $ruledata = $ruleobject->ruledata;
+            if (!empty($ruledata->cancelrules)) {
+                foreach ($ruledata->cancelrules as $cancelrule) {
+
+                    foreach ($rulestoexecute as $key => $rulearray) {
+                        if ($rulearray['ruleid'] == $cancelrule) {
+                            unset($rulestoexecute[$key]);
+                            unset(self::$rulestoexecute[$key]);
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach ($rulestoexecute as $key => $rulearray) {
+            $rule = $rulearray['rule'];
+            // Make sure we don't execute this multiple times.
+            unset($rulestoexecute[$key]);
+            unset(self::$rulestoexecute[$key]);
+            $rule->execute($rulearray['optionid'], 0);
+        }
+    }
+
+    /**
+     * Check if booking rules are applicable for this type of event.
+     *
+     * @param \core\event\base $event
+     * @param array $data
+     *
+     * @return bool
+     *
+     */
+    private static function proceed_with_event(\core\event\base $event, array $data): bool {
+
+        switch ($data['component']) {
+            case 'local_shopping_cart':
+                $acceptedeventsfromshoppingcart = [
+                    'item_bought',
+                    'item_canceled',
+                    'payment_confirmed',
+                ];
+                foreach ($acceptedeventsfromshoppingcart as $accepted) {
+                    if (
+                        strpos($data['eventname'], $accepted) !== false
+                        && $data['other']['component'] == 'mod_booking'
+                    ) {
+                        return true;
+                    }
+                }
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Execute Events that need to be executed after executing rules.
+     *
+     * @return void
+     *
+     */
+    public static function events_to_execute() {
+
+        foreach (self::$eventstoexecute as $key => $event) {
+            unset(self::$eventstoexecute[$key]);
+            $event();
+        }
     }
 }

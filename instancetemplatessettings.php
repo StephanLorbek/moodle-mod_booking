@@ -22,6 +22,7 @@
  * @author Bernhard Fischer
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
 require_once('../../config.php');
 require_once($CFG->libdir.'/adminlib.php');
 
@@ -49,7 +50,7 @@ if ((has_capability('mod/booking:updatebooking', $context) || has_capability('mo
 $pageurl = new moodle_url('/mod/booking/instancetemplatessettings.php');
 
 if (!empty($instancetodelete) && $instancetodelete > 0) {
-    $DB->delete_records('booking_instancetemplate', array('id' => $instancetodelete));
+    $DB->delete_records('booking_instancetemplate', ['id' => $instancetodelete]);
     redirect($pageurl, get_string('templatedeleted', 'mod_booking'), 5);
 }
 

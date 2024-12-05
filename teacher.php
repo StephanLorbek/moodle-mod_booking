@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * Add dates to option.
  *
@@ -22,12 +23,14 @@
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+require_once(__DIR__ . '/../../config.php'); // phpcs:ignore moodle.Files.RequireLogin.Missing
+
+// Check if login is required.
+if (empty(get_config('booking', 'teachersnologinrequired'))) {
+    require_login(0, false);
+}
+
 use mod_booking\output\page_teacher;
-
-require_once(__DIR__ . '/../../config.php');
-
-// No guest autologin.
-require_login(0, false);
 
 global $DB, $PAGE, $OUTPUT, $USER;
 
@@ -39,10 +42,10 @@ $teacherid = required_param('teacherid', PARAM_INT);
 
 // Check if optionid is valid.
 $PAGE->set_context($context);
+$PAGE->set_url('/mod/booking/teacher.php?teacherid=' . $teacherid);
 
 $title = get_string('teacher', 'mod_booking');
 
-$PAGE->set_url('/mod/booking/teacher.php');
 $PAGE->navbar->add($title);
 $PAGE->set_title(format_string($title));
 $PAGE->set_heading($title);

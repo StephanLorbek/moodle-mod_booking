@@ -52,18 +52,31 @@ class col_price implements renderable, templatable {
     /** @var array $priceitem array of priceitem */
     public $priceitems = [];
 
+    /** @var array $priceitem */
+    public $priceitem = [];
+
+    /**
+     * $context
+     *
+     * @var object
+     */
     private $context = null;
 
     /**
      * Only when the user is not booked, we store a price during construction.
-     */
-    /**
-     * Undocumented function
      *
-
+     * @param stdClass $values
      * @param booking_option_settings $settings
+     * @param object|null $buyforuser
+     * @param context|null $context
+     *
      */
-    public function __construct(stdClass $values, booking_option_settings $settings, $buyforuser = null, context $context = null) {
+    public function __construct(
+        stdClass $values,
+        booking_option_settings $settings,
+        ?object $buyforuser = null,
+        ?context $context = null
+    ) {
 
         global $USER;
 
@@ -82,6 +95,7 @@ class col_price implements renderable, templatable {
 
         // Because of the caching logic, we have to create the booking_answers object here again.
         if ($values->id) {
+            $settings = singleton_service::get_instance_of_booking_option_settings($values->id);
             $bookinganswers = singleton_service::get_instance_of_booking_answers($settings);
 
             // We only show the price when we can actually buy.
@@ -90,14 +104,14 @@ class col_price implements renderable, templatable {
             // When deleted, we can book again.
 
             switch ($bookinganswers->user_status($buyforuser->id)) {
-                case STATUSPARAM_RESERVED:
-                case STATUSPARAM_NOTBOOKED:
-                case STATUSPARAM_DELETED:
-                case STATUSPARAM_NOTIFYMELIST:
+                case MOD_BOOKING_STATUSPARAM_RESERVED:
+                case MOD_BOOKING_STATUSPARAM_NOTBOOKED:
+                case MOD_BOOKING_STATUSPARAM_DELETED:
+                case MOD_BOOKING_STATUSPARAM_NOTIFYMELIST:
                     if ($this->priceitem = price::get_price('option', $values->id, $buyforuser)) {
 
                         $cartitem = new cartitem($values->id,
-                                         $values->text,
+                                         $settings->get_title_with_prefix(),
                                          $this->priceitem['price'],
                                          $this->priceitem['currency'],
                                          'mod_booking',
@@ -156,7 +170,7 @@ class col_price implements renderable, templatable {
             'area' => 'option',
             'description' => $this->cartitem['description'],
             'imageurl' => $this->cartitem['imageurl'],
-            'priceitems' => $this->priceitem
+            'priceitems' => $this->priceitem,
         ];
     }
 }

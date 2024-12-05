@@ -52,9 +52,15 @@ class teacher_added extends \core\event\base {
      * @return string
      */
     public static function get_name() {
-        return get_string('eventteacher_added', 'mod_booking');
+        return get_string('eventteacheradded', 'mod_booking');
     }
 
+    /**
+     * Get description
+     *
+     * @return string
+     *
+     */
     public function get_description() {
         return "The user with id '$this->userid' added teacher with user id
                 '$this->relateduserid' to the booking option with the option id
@@ -75,7 +81,7 @@ class teacher_added extends \core\event\base {
         return new moodle_url($CFG->wwwroot . '/mod/booking/view.php', [
             'id' => $optionsettings->cmid,
             'optionid' => $optionid,
-            'whichview' => 'showonlyone'
+            'whichview' => 'showonlyone',
         ]);
     }
 }

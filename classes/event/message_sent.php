@@ -24,6 +24,12 @@
  */
 
 namespace mod_booking\event;
+use mod_booking\singleton_service;
+
+defined('MOODLE_INTERNAL') || die();
+
+global $CFG;
+require_once($CFG->dirroot . '/mod/booking/lib.php');
 
 /**
  * The message_sent event class.
@@ -35,58 +41,120 @@ namespace mod_booking\event;
  */
 class message_sent extends \core\event\base {
 
+    /**
+     * Init
+     *
+     * @return void
+     *
+     */
     protected function init() {
         $this->data['crud'] = 'r';
         $this->data['edulevel'] = self::LEVEL_TEACHING;
+        $this->data['objecttable'] = 'booking_options';
     }
 
+    /**
+     * Get name
+     *
+     * @return string
+     *
+     */
     public static function get_name() {
-        return get_string('message_sent', 'booking');
+        return get_string('messagesent', 'booking');
     }
 
+    /**
+     * Get description
+     *
+     * @return string
+     *
+     */
     public function get_description() {
 
-        return $this->transform_msgparam( $this->other['messageparam'] ) . ": " .
-            "An e-mail with subject '" . $this->other['subject'] . "' has been sent to user with id: '{$this->userid}'. " .
-            "The mail was sent from the user with id: '{$this->relateduserid}'.";
+        // For the collapsibles, we need a uniqueid.
+        $uniqueid = uniqid();
+
+        $data = $this->get_data();
+
+        if (is_string($data['other'])) {
+            $other = (object)json_decode($data['other']);
+            $messageparam = $other->messageparam ?? 0;
+            $userid = $data['userid'] ?? 'unknown';
+            $relateduserid = $data['relateduserid'] ?? 'unknown';
+        } else {
+            $other = (object)$data['other'];
+            $userid = $data['userid'];
+            $relateduserid = $data['relateduserid'];
+
+        }
+        $subject = $other->subject ?? '';
+        $message = $other->message ?? 'Message body not saved.';
+        $messageparam = $other->messageparam ?? '';
+
+        $messagetype = $this->transform_msgparam( $messageparam );
+
+        $user = singleton_service::get_instance_of_user($userid);
+        $relateduser = singleton_service::get_instance_of_user($relateduserid);
+        $username = empty($user) ? $userid : $user->firstname . " " . $user->lastname;
+        $relatedusername = empty($relateduser) ? $userid : $relateduser->firstname . " " . $relateduser->lastname;
+
+        return '
+            <a class=""
+                data-toggle="collapse"
+                href="#a' . $uniqueid . '"
+                role="button" aria-expanded="false"
+                aria-controls="collapseExample">
+
+                ' . $messagetype . ' A message e-mail with subject "' . $subject .
+                '" has been sent to user: "'. $relatedusername .
+                '" by the user "' . $username  .'"
+            </a>
+            <div class="collapse" id="a' . $uniqueid . '">
+                <div class="card card-body">
+                    ' . $message . '
+                </div>
+            </div>';
+
     }
 
     /**
      * Helper function to transform the message param.
-     * @param $msgparam the message parameter
+     * @param int $msgparam the message parameter
      * @return string
      */
     private function transform_msgparam(int $msgparam): string {
 
         switch ($msgparam) {
-            case MSGPARAM_CONFIRMATION:
+            case MOD_BOOKING_MSGPARAM_CONFIRMATION:
                 return 'Booking confirmation';
-            case MSGPARAM_WAITINGLIST:
+            case MOD_BOOKING_MSGPARAM_WAITINGLIST:
                 return 'Waiting list confirmation';
-            case MSGPARAM_REMINDER_PARTICIPANT:
+            case MOD_BOOKING_MSGPARAM_REMINDER_PARTICIPANT:
                 return 'Reminder';
-            case MSGPARAM_REMINDER_TEACHER:
+            case MOD_BOOKING_MSGPARAM_REMINDER_TEACHER:
                 return 'Teacher reminder';
-            case MSGPARAM_STATUS_CHANGED:
+            case MOD_BOOKING_MSGPARAM_STATUS_CHANGED:
                 return 'Status change';
-            case MSGPARAM_CANCELLED_BY_PARTICIPANT:
+            case MOD_BOOKING_MSGPARAM_CANCELLED_BY_PARTICIPANT:
                 return 'Option cancelled by participant';
-            case MSGPARAM_CANCELLED_BY_TEACHER_OR_SYSTEM:
+            case MOD_BOOKING_MSGPARAM_CANCELLED_BY_TEACHER_OR_SYSTEM:
                 return 'Option cancelled by teacher or system';
-            case MSGPARAM_CHANGE_NOTIFICATION:
+            case MOD_BOOKING_MSGPARAM_CHANGE_NOTIFICATION:
                 return 'Change notification';
-            case MSGPARAM_POLLURL_PARTICIPANT:
+            case MOD_BOOKING_MSGPARAM_POLLURL_PARTICIPANT:
                 return 'Poll URL message';
-            case MSGPARAM_POLLURL_TEACHER:
+            case MOD_BOOKING_MSGPARAM_POLLURL_TEACHER:
                 return 'Teacher\'s poll URL message';
-            case MSGPARAM_COMPLETED:
+            case MOD_BOOKING_MSGPARAM_COMPLETED:
                 return 'Booking option completion';
-            case MSGPARAM_SESSIONREMINDER:
+            case MOD_BOOKING_MSGPARAM_SESSIONREMINDER:
                 return 'Session reminder';
-            case MSGPARAM_REPORTREMINDER:
+            case MOD_BOOKING_MSGPARAM_REPORTREMINDER:
                 return 'Reminder sent from report';
-            case MSGPARAM_CUSTOM_MESSAGE:
+            case MOD_BOOKING_MSGPARAM_CUSTOM_MESSAGE:
                 return 'Custom message';
+            default:
+                return 'Unknown message type';
         }
     }
 }

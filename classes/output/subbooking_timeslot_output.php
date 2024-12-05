@@ -28,7 +28,7 @@ namespace mod_booking\output;
 use local_entities\entitiesrelation_handler;
 use mod_booking\bo_availability\conditions\subbooking;
 use mod_booking\booking_option_settings;
-use mod_booking\dates_handler;
+use mod_booking\option\dates_handler;
 use mod_booking\price;
 use mod_booking\subbookings\sb_types\subbooking_timeslot;
 use renderer_base;
@@ -55,7 +55,7 @@ class subbooking_timeslot_output implements renderable, templatable {
      *
      * @param booking_option_settings $settings
      * @param bool $includebookinginformation
-     * @param integer $userid
+     * @param int $userid
      */
     public function __construct(
         booking_option_settings $settings,

@@ -18,7 +18,8 @@
  * This file contains the definition for the renderable classes for the booking instance
  *
  * @package   mod_booking
- * @copyright 2021 Georg Maißer {@link http://www.wunderbyte.at}
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Georg Maißer {@link http://www.wunderbyte.at}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -34,7 +35,8 @@ use user_picture;
  * This class prepares data for displaying a booking instance
  *
  * @package mod_booking
- * @copyright 2021 Georg Maißer {@link http://www.wunderbyte.at}
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Georg Maißer {@link http://www.wunderbyte.at}
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class business_card implements renderable, templatable {
@@ -66,7 +68,9 @@ class business_card implements renderable, templatable {
     /**
      * Constructor
      *
-     * @param \stdClass $data
+     * @param object $bookingsettings
+     * @param int $userid
+     *
      */
     public function __construct($bookingsettings, $userid) {
 
@@ -79,14 +83,12 @@ class business_card implements renderable, templatable {
         $userpictureurl = $userpic->get_url($PAGE);
         $userprofileurl = new moodle_url('../../user/profile.php', ['id' => $user->id]);
         $sendmessageurl = new moodle_url('../../message/index.php', ['id' => $user->id]);
-        $description = format_text($bookingsettings->intro, $bookingsettings->introformat);
         $userdescription = format_text($user->description, $user->descriptionformat);
 
         $this->username = "$user->firstname $user->lastname";
         $this->userpictureurl = $userpictureurl;
         $this->userprofileurl = $userprofileurl;
         $this->sendmessageurl = $sendmessageurl;
-        $this->description = $description;
         $this->userdescription = $userdescription;
         $this->duration = $bookingsettings->duration;
         $this->points = null;
@@ -96,17 +98,23 @@ class business_card implements renderable, templatable {
         }
     }
 
+    /**
+     * Export for template
+     *
+     * @param renderer_base $output
+     *
+     * @return array
+     *
+     */
     public function export_for_template(renderer_base $output) {
-        return array(
+        return [
                 'username' => $this->username,
                 'userpictureurl' => $this->userpictureurl->out(),
                 'userprofileurl' => $this->userprofileurl->out(),
                 'sendmessageurl' => $this->sendmessageurl->out(),
-                // As of Moodle 4.0 activity description will be shown automatically in module header.
-                /* 'description' => $this->description, */ // phpcs:ignore Squiz.PHP.CommentedOutCode.Found
                 'userdescription' => $this->userdescription,
                 'duration' => $this->duration,
-                'points' => $this->points
-        );
+                'points' => $this->points,
+        ];
     }
 }

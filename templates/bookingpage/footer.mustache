@@ -15,7 +15,7 @@
     along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 }}
 {{!
-    @template mod_booking/bookingpage/header
+    @template mod_booking/bookingpage/footer
 
     Classes required for JS:
     * none
@@ -28,7 +28,8 @@
         "continuebutton": true,
         "continuelabel": "my label",
         "continueaction": "continu eaction",
-        "continuelink": "http://"
+        "continuelink": "http://",
+        "shoppingcartisinstalled": true
     }
 }}
 
@@ -46,7 +47,8 @@
         {{#continuebutton}}
             <a class="btn btn-primary continue-button" href="#"
                 data-action="{{continueaction}}"
-                data-href="{{continuelink}}">
+                data-href="{{continuelink}}"
+                data-toggle="tab">
                 {{{continuelabel}}}
             </a>
         {{/continuebutton}}
@@ -54,7 +56,7 @@
 </div>
 
 {{#js}}
-    require(['mod_booking/prepageFooter'], function(init) {
-    init.initFooterButtons({{optionid}}, {{userid}});
+    require(['mod_booking/bookingpage/prepageFooter'], function(init) {
+        init.initFooterButtons({{optionid}}, {{userid}}, {{shoppingcartisinstalled}});
     });
 {{/js}}

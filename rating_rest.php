@@ -21,11 +21,14 @@
  * @copyright 2021 Wunderbyte GmbH <info@wunderbyte.at>
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
+use mod_booking\singleton_service;
+
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/booking/locallib.php');
 
-if (!defined('AJAX_SCRIPT')) {
-    define('AJAX_SCRIPT', true);
+if (!defined('MOD_BOOKING_RATING_AJAX_SCRIPT')) {
+    define('MOD_BOOKING_RATING_AJAX_SCRIPT', true);
 }
 
 $id = required_param('id', PARAM_INT); // Course Module ID.
@@ -44,7 +47,7 @@ $record->rate = $value;
 
 $isinserted = false;
 
-$bookingdata = new \mod_booking\booking_option($cm->id, $optionid);
+$bookingdata = singleton_service::get_instance_of_booking_option($cm->id, $optionid);
 
 try {
     if ($bookingdata->can_rate()) {
@@ -58,6 +61,6 @@ try {
 $avg = $DB->get_record_sql(
         'SELECT IFNULL(AVG(rate), 1) AS rate
         FROM {booking_ratings}
-        WHERE optionid = ?', array($optionid));
+        WHERE optionid = ?', [$optionid]);
 
-echo json_encode(array('rate' => (int) $avg->rate, 'duplicate' => $isinserted));
+echo json_encode(['rate' => (int) $avg->rate, 'duplicate' => $isinserted]);

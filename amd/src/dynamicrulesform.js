@@ -1,5 +1,3 @@
-/* eslint-disable promise/always-return */
-/* eslint-disable promise/catch-or-return */
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -58,6 +56,7 @@ function editRulesModal(element) {
     const ruleid = element.dataset.id;
     const name = element.dataset.name;
     const action = element.dataset.action;
+    const contextid = element.dataset.contextid;
 
     if (!ruleid) {
         return;
@@ -93,7 +92,10 @@ function editRulesModal(element) {
             // Name of the class where form is defined (must extend \core_form\dynamic_form):
             formClass: "mod_booking\\form\\rulesform",
             // Add as many arguments as you need, they will be passed to the form:
-            args: {id: ruleid},
+            args: {
+                id: ruleid,
+                contextid: contextid
+            },
             // Pass any configuration settings to the modal dialogue, for example, the title:
             modalConfig: {title: getString('editrule', 'mod_booking')},
             // DOM element that should get the focus after the modal dialogue is closed:
@@ -117,6 +119,12 @@ function editRulesModal(element) {
             if (e.target.name == 'bookingruletype') {
                 window.skipClientValidation = true;
                 let button = document.querySelector('[name="btn_bookingruletype"]');
+                modalForm.processNoSubmitButton(button);
+            }
+
+            if (e.target.name == 'bookingruletemplate') {
+                window.skipClientValidation = true;
+                let button = document.querySelector('[name="btn_bookingruletemplates"]');
                 modalForm.processNoSubmitButton(button);
             }
 

@@ -58,7 +58,7 @@ if ($mform->is_cancelled()) {
     if (empty($existingpricecategories)) {
         // There are no price categories yet.
         // Currently there can be up to nine price categories.
-        for ($i = 1; $i <= MAX_PRICE_CATEGORIES; $i++) {
+        for ($i = 1; $i <= MOD_BOOKING_MAX_PRICE_CATEGORIES; $i++) {
 
             $pricecategoryordernumx = 'pricecategoryordernum' . $i;
             $pricecategoryidentifierx = 'pricecategoryidentifier' . $i;
@@ -101,8 +101,8 @@ if ($mform->is_cancelled()) {
                             'relateduserid' => $USER->id,
                             'other' => [
                                 'oldidentifier' => $oldidentifier,
-                                'newidentifier' => $newidentifier
-                            ]
+                                'newidentifier' => $newidentifier,
+                            ],
                         ]
                     );
                     $event->trigger();
@@ -135,8 +135,9 @@ if ($mform->is_cancelled()) {
  * Helper function to return arrays containing all relevant pricecategories update changes.
  * The returned arrays will have the prepared stdClasses for update and insert in booking_pricecategories table.
  *
- * @param $oldpricecategories the existing price categories
- * @param $data the form data
+ * @param mixed $oldpricecategories the existing price categories
+ * @param stdClass $data the form data
+ *
  * @return array
  */
 function pricecategories_get_changes($oldpricecategories, $data) {
@@ -187,6 +188,6 @@ function pricecategories_get_changes($oldpricecategories, $data) {
 
     return [
             'inserts' => $inserts,
-            'updates' => $updates
+            'updates' => $updates,
     ];
 }

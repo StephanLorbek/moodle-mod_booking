@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * This page allows to confirm user as completed if has received certificaion badge or completed certain activity.
  *
@@ -21,11 +22,13 @@
  * @copyright 2015 onwards David Bogner {@link http://www.edulabs.org}
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/booking/locallib.php');
 
 use mod_booking\utils\db;
 use mod_booking\form\confirmactivity;
+use mod_booking\singleton_service;
 
 $id = required_param('id', PARAM_INT); // Course_module ID.
 $optionid = required_param('optionid', PARAM_INT);
@@ -38,10 +41,10 @@ require_login($course, true, $cm);
 $context = context_module::instance($cm->id);
 $PAGE->set_context($context);
 
-$bookingoption = new \mod_booking\booking_option($id, $optionid);
-$url = new moodle_url('/mod/booking/confirmactivity.php', array('id' => $id, 'optionid' => $optionid));
-$backurl = new moodle_url('/mod/booking/report.php', array('id' => $cm->id, 'optionid' => $optionid));
-$errorurl = new moodle_url('/mod/booking/view.php', array('id' => $id));
+$bookingoption = singleton_service::get_instance_of_booking_option($id, $optionid);
+$url = new moodle_url('/mod/booking/confirmactivity.php', ['id' => $id, 'optionid' => $optionid]);
+$backurl = new moodle_url('/mod/booking/report.php', ['id' => $cm->id, 'optionid' => $optionid]);
+$errorurl = new moodle_url('/mod/booking/view.php', ['id' => $id]);
 
 if (!booking_check_if_teacher ( $bookingoption->option )) {
     if (!(has_capability('mod/booking:readresponses', $context) || has_capability('moodle/site:accessallgroups', $context))) {
@@ -49,8 +52,7 @@ if (!booking_check_if_teacher ( $bookingoption->option )) {
     }
 }
 
-$mform = new confirmactivity($url, array('course' => $course,
-    'optionid' => $optionid, 'bookingid' => $bookingoption->booking->id));
+$mform = new confirmactivity($url, ['course' => $course, 'optionid' => $optionid, 'bookingid' => $bookingoption->booking->id]);
 
 if ($mform->is_cancelled()) {
     redirect($backurl, '', 0);

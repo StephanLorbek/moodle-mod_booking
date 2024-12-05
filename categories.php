@@ -21,13 +21,14 @@
  * @copyright 2022 Wunderbyte GmbH <info@wunderbyte.at>
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
 require_once(__DIR__ . '/../../config.php');
 require_once("lib.php");
 require_once("categoriesform.class.php");
 
 $courseid = required_param('courseid', PARAM_INT);
 
-$url = new moodle_url('/mod/booking/categories.php', array('courseid' => $courseid));
+$url = new moodle_url('/mod/booking/categories.php', ['courseid' => $courseid]);
 $PAGE->set_url($url);
 
 $context = context_course::instance($courseid);
@@ -44,7 +45,7 @@ $PAGE->set_heading($COURSE->fullname);
 $PAGE->set_title($title);
 
 // Get root categories.
-$categories = $DB->get_records('booking_category', array('course' => $courseid, 'cid' => 0));
+$categories = $DB->get_records('booking_category', ['course' => $courseid, 'cid' => 0]);
 
 echo $OUTPUT->header();
 
@@ -67,7 +68,7 @@ foreach ($categories as $category) {
              get_string('deletecategory', 'booking') . '</a>';
     echo "<li>$category->name - $editlink - $deletelink</li>";
     $subcategories = $DB->get_records('booking_category',
-            array('course' => $courseid, 'cid' => $category->id));
+            ['course' => $courseid, 'cid' => $category->id]);
     if (count($subcategories) > 0) {
         echo "<ul>";
         foreach ($subcategories as $subcat) {

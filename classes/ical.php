@@ -13,60 +13,167 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
-namespace mod_booking;
-
-const DESCRIPTION_ICAL = 3;
 
 /**
  * Support class for generating ical items Note - this code is based on the ical code from mod_facetoface
  *
  * @package mod_booking
- * @copyright 2012-2017 Davo Smith, Synergy Learning, Andras Princic, David Bogner
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Davo Smith, Synergy Learning, Andras Princic, David Bogner
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+namespace mod_booking;
+
+/**
+ * MOD_BOOKING_DESCRIPTION_ICAL
+ *
+ * @var int
+ */
+const MOD_BOOKING_DESCRIPTION_ICAL = 3;
+
+/**
+ * Class for generating ical items Note - this code is based on the ical code from mod_facetoface
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Davo Smith, Synergy Learning, Andras Princic, David Bogner
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class ical {
 
+    /**
+     * $datesareset
+     *
+     * @var bool
+     */
     private $datesareset = false;
 
+    /**
+     * $booking
+     *
+     * @var mixed
+     */
     protected $booking;
 
+    /**
+     * $option
+     *
+     * @var mixed
+     */
     protected $option;
 
+    /**
+     * $user
+     *
+     * @var mixed
+     */
     protected $user;
 
+    /**
+     * $fromuser
+     *
+     * @var mixed
+     */
     protected $fromuser;
 
+    /**
+     * $updated
+     *
+     * @var mixed
+     */
     protected $updated;
 
+    /**
+     * $tempfilename
+     *
+     * @var string
+     */
     protected $tempfilename = '';
 
+    /**
+     * $times
+     *
+     * @var array
+     */
     protected $times = '';
 
+    /**
+     * $ical
+     *
+     * @var string
+     */
     protected $ical = '';
 
+    /**
+     * $dtstamp
+     *
+     * @var string
+     */
     protected $dtstamp = '';
 
+    /**
+     * $summary
+     *
+     * @var string
+     */
     protected $summary = '';
 
+    /**
+     * $description
+     *
+     * @var string
+     */
     protected $description = '';
 
+    /**
+     * $location
+     *
+     * @var string
+     */
     protected $location = '';
 
+    /**
+     * $host
+     *
+     * @var string
+     */
     protected $host = '';
 
+    /**
+     * $status
+     *
+     * @var string
+     */
     protected $status = '';
 
+    /**
+     * $role
+     *
+     * @var string
+     */
     protected $role = 'REQ-PARTICIPANT';
 
+    /**
+     * $userfullname
+     *
+     * @var string
+     */
     protected $userfullname = '';
 
+    /**
+     * $attachical
+     *
+     * @var bool
+     */
     protected $attachical = false;
 
-    protected $attachicalsessions = false;
-
-    protected $onefileperevent = false;
-
-    protected $individualvevents = array();
+    /**
+     * $individualvevents
+     *
+     * @var array
+     */
+    protected $individualvevents = [];
 
     /**
      * Create a new mod_booking\ical instance
@@ -74,6 +181,7 @@ class ical {
      * @param object $booking the booking activity details
      * @param object $option the option that is being booked
      * @param object $user the user the booking is for
+     * @param object $fromuser
      * @param bool $updated if set to true, this will create an update ical (METHOD: REQUEST, SEQUENCE: 1)
      */
     public function __construct($booking, $option, $user, $fromuser, $updated = false) {
@@ -83,7 +191,7 @@ class ical {
         $this->option = $option;
         $this->fromuser = $fromuser;
         $this->updated = $updated;
-        $this->times = $DB->get_records('booking_optiondates', array('optionid' => $option->id),
+        $this->times = $DB->get_records('booking_optiondates', ['optionid' => $option->id],
                 'coursestarttime ASC');
         // Check if start and end dates exist.
         $coursedates = ($this->option->coursestarttime && $this->option->courseendtime);
@@ -93,7 +201,7 @@ class ical {
         // and shows the newlines as [0x0A] junk. So we switch it for commas
         // here. Remember commas need to be escaped too.
         if ($this->option->courseid && (\get_config('booking', 'icalfieldlocation') == 1)) {
-            $url = new \moodle_url('/course/view.php', array('id' => $this->option->courseid));
+            $url = new \moodle_url('/course/view.php', ['id' => $this->option->courseid]);
             $this->location = $this->escape($url->out());
         } else if (\get_config('booking', 'icalfieldlocation') == 2) {
             $this->location = $this->option->location;
@@ -104,7 +212,7 @@ class ical {
         }
         if (($coursedates || $sessiontimes)) {
             $this->datesareset = true;
-            $this->user = $DB->get_record('user', array('id' => $user->id));
+            $this->user = $DB->get_record('user', ['id' => $user->id]);
             // Date that this representation of the calendar information was created -
             // See http://www.kanzaki.com/docs/ical/dtstamp.html.
             $this->dtstamp = $this->generate_timestamp($this->option->timemodified);
@@ -114,8 +222,6 @@ class ical {
             $this->host = $urlbits['host'];
             $this->userfullname = \fullname($this->user);
             $this->attachical = \get_config('booking', 'attachical');
-            $this->attachicalsessions = \get_config('booking', 'attachicalsessions');
-            $this->onefileperevent = \get_config('booking', 'multiicalfiles');
         }
     }
 
@@ -128,7 +234,7 @@ class ical {
     public function get_attachments($cancel = false) {
         global $CFG;
         if (!$this->datesareset) {
-            return array();
+            return [];
         }
 
         // UIDs should be globally unique. @$this->host: Hostname for this moodle installation.
@@ -150,27 +256,15 @@ class ical {
             $icalmethod = 'PUBLISH';
         }
 
-        if (!empty($this->times) && $this->attachicalsessions) {
+        // This is where we attach the iCal.
+        if (!empty($this->times) && $this->attachical) {
             $this->get_vevents_from_optiondates();
-        } else if ($this->attachical && $this->option->coursestarttime) {
-            $this->add_vevent($uid, $dtstart, $dtend);
         }
-        if ($this->onefileperevent) {
-            $attachments = array();
-            $i = 1;
-            foreach ($this->individualvevents as $vevent) {
-                $icaldata = $this->generate_ical_string($icalmethod, $vevent);
-                $filepathname = $this->generate_tempfile($icaldata);
-                $attachments["booking0{$i}.ics"] = $filepathname;
-                $i++;
-            }
-            return $attachments;
-        } else {
-            $allvevents = trim(implode("\r\n", $this->individualvevents));
-            $icaldata = $this->generate_ical_string($icalmethod, $allvevents);
-            $filepathname = $this->generate_tempfile($icaldata);
-            return array('booking.ics' => $filepathname);
-        }
+
+        $allvevents = trim(implode("\r\n", $this->individualvevents));
+        $icaldata = $this->generate_ical_string($icalmethod, $allvevents);
+        $filepathname = $this->generate_tempfile($icaldata);
+        return ['booking.ics' => $filepathname];
     }
 
     /**
@@ -195,26 +289,26 @@ class ical {
      * @return string ical
      */
     protected function generate_ical_string($icalmethod, $vevents) {
-        $icalparts = array(
+        $icalparts = [
             'BEGIN:VCALENDAR',
             'VERSION:2.0',
             'METHOD:' . $icalmethod,
             'PRODID:Data::ICal 0.22',
             'CALSCALE:GREGORIAN',
             $vevents,
-            'END:VCALENDAR'
-        );
+            'END:VCALENDAR',
+        ];
         return implode("\r\n", $icalparts);
     }
 
     /**
      * Get vevents based on session times that are defined in the booking options.
      *
-     * @return string $vevent
+     * @return void
      */
     protected function get_vevents_from_optiondates() {
         global $CFG;
-        $vevents = array();
+        $vevents = [];
         foreach ($this->times as $time) {
             $dtstart = $this->generate_timestamp($time->coursestarttime);
             $dtend = $this->generate_timestamp($time->courseendtime);
@@ -229,18 +323,19 @@ class ical {
      * @param string $uid
      * @param string $dtstart
      * @param string $dtend
-     * @return string $vevent vevent
+     * @param bool $time
+     * @return void
      */
-    protected function add_vevent ($uid, $dtstart, $dtend, $time = false) {
+    protected function add_vevent($uid, $dtstart, $dtend, $time = false) {
         global $CFG, $DB, $PAGE;
 
         $eventid = false;
         if ($time) {
             // If it's an option date (a session), use the option date's eventid.
-            $fulldescription = get_rendered_eventdescription($this->option->id, $this->booking->cmid, DESCRIPTION_ICAL);
+            $fulldescription = get_rendered_eventdescription($this->option->id, $this->booking->cmid, MOD_BOOKING_DESCRIPTION_ICAL);
         } else {
             // Use calendarid of the option if it's an option event.
-            $fulldescription = get_rendered_eventdescription($this->option->id, $this->booking->cmid, DESCRIPTION_ICAL);
+            $fulldescription = get_rendered_eventdescription($this->option->id, $this->booking->cmid, MOD_BOOKING_DESCRIPTION_ICAL);
         }
 
         // Make sure we have not tags in full description.
@@ -254,7 +349,7 @@ class ical {
         // If no bookingmanager was set, we fall back to the no-reply address.
         $fromuseremail = empty($this->fromuser->email) ? $noreplyaddress : $this->fromuser->email;
 
-        $veventparts = array(
+        $veventparts = [
             "BEGIN:VEVENT",
             "CLASS:PUBLIC",
             "DESCRIPTION:{$fulldescription}",
@@ -270,14 +365,12 @@ class ical {
             "ORGANIZER;CN={$fromuseremail}:MAILTO:{$fromuseremail}",
             "ATTENDEE;CUTYPE=INDIVIDUAL;ROLE={$this->role};PARTSTAT=NEEDS-ACTION;RSVP=false;" .
                 "CN={$this->userfullname};LANGUAGE=en:MAILTO:{$this->user->email}",
-            "UID:{$uid}"
-        );
+            "UID:{$uid}",
+        ];
 
         // If the event has been updated then add SEQUENCE:1 before END:VEVENT.
         if ($this->updated) {
-            if (!$data = $DB->get_record('booking_icalsequence', array(
-                    'userid' => $this->user->id,
-                    'optionid' => $this->option->id))) {
+            if (!$data = $DB->get_record('booking_icalsequence', ['userid' => $this->user->id, 'optionid' => $this->option->id])) {
                 $data = new \stdClass();
                 $data->userid = $this->user->id;
                 $data->optionid = $this->option->id;
@@ -306,13 +399,22 @@ class ical {
 
     /**
      * Format timestamp.
-     * @param integer $timestamp
+     * @param int $timestamp
      * @return string
      */
     protected function generate_timestamp($timestamp) {
         return gmdate('Ymd', $timestamp) . 'T' . gmdate('His', $timestamp) . 'Z';
     }
 
+    /**
+     * String escape
+     *
+     * @param string $text
+     * @param bool $converthtml
+     *
+     * @return string
+     *
+     */
     protected function escape($text, $converthtml = false) {
         if (empty($text)) {
             return '';
@@ -322,7 +424,7 @@ class ical {
             $text = html_to_text($text);
         }
 
-        $text = str_replace(array('\\', "\n", ';', ','), array('\\\\', '\n', '\;', '\,'), $text);
+        $text = str_replace(['\\', "\n", ';', ','], ['\\\\', '\n', '\;', '\,'], $text);
 
         // Text should be wordwrapped at 75 octets, and there should be one whitespace after the newline that does the wrapping.
         $text = wordwrap($text, 75, "\n ", true);

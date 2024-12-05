@@ -14,9 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * Plugin internal classes, functions and constants are defined here.
+ *
+ * @package     mod_booking
+ * @copyright   2013 David Bogner <david.bogner@wunderbyte.at>
+ * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 defined('MOODLE_INTERNAL') || die();
 
-use mod_booking\booking_option;
 use mod_booking\booking_rules\rules_info;
 use mod_booking\booking_utils;
 use mod_booking\event\bookingoptiondate_created;
@@ -101,7 +108,13 @@ abstract class booking_user_selector_base extends user_selector_base {
         }
     }
 
-    protected function get_options() {
+    /**
+     * Get options.
+     *
+     * @return array
+     *
+     */
+    protected function get_options(): array {
         $options = parent::get_options();
         $options['file'] = 'mod/booking/locallib.php';
         $options['bookingid'] = $this->bookingid;
@@ -123,27 +136,43 @@ abstract class booking_user_selector_base extends user_selector_base {
     }
 }
 
-
 /**
- * User selector for booking other users
+ * Сlass used by гser selector for booking other users
+ *
+ * @package mod_booking
+ * @copyright 2013 David Bogner
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class booking_potential_user_selector extends booking_user_selector_base {
 
     /** @var array $options */
     public $options;
 
-    /** @var bool $bookanyone */
-    public $bookanyone;
-
-    public function __construct($name, $options, $bookanyone = false) {
+    /**
+     * Constructor
+     *
+     * @param string $name
+     * @param array $options
+     *
+     */
+    public function __construct($name, $options) {
 
         $this->options = $options;
-        $this->bookanyone = $bookanyone;
         parent::__construct($name, $options);
     }
 
+    /**
+     * Find users.
+     *
+     * @param string $search
+     *
+     * @return array
+     *
+     */
     public function find_users($search) {
         global $DB;
+
+        $bookanyone = get_user_preferences('bookanyone', false);
 
         $onlygroupmembers = false;
         if (groups_get_activity_groupmode($this->cm) == SEPARATEGROUPS &&
@@ -174,15 +203,15 @@ class booking_potential_user_selector extends booking_user_selector_base {
                 'mod/booking:readallinstitutionusers', $this->options['accesscontext'])) {
 
             $institution = $DB->get_record('booking_options',
-                    array('id' => $this->options['optionid']));
+                    ['id' => $this->options['optionid']]);
 
             $searchparams['onlyinstitution'] = $institution->institution;
             $searchcondition .= ' AND u.institution LIKE :onlyinstitution';
         }
 
         // If true, anyone can be booked - even users not enrolled.
-        // Only SITE admins are allowed to do this!
-        if ($this->bookanyone && is_siteadmin()) {
+        // To allow this, bookanyone has to be given.
+        if ($bookanyone && has_capability('mod/booking:bookanyone', context_module::instance($this->cm->id))) {
             $enrolledsqlpart = '';
         } else {
             $enrolledsqlpart = "AND u.id IN (
@@ -205,7 +234,7 @@ class booking_potential_user_selector extends booking_user_selector_base {
             AND waitinglist <> :statusparamdeleted
         )";
 
-        $searchparams['statusparamdeleted'] = STATUSPARAM_DELETED;
+        $searchparams['statusparamdeleted'] = MOD_BOOKING_STATUSPARAM_DELETED;
 
         list($sort, $sortparams) = users_order_by_sql('u', $search, $this->accesscontext);
         $order = ' ORDER BY ' . $sort;
@@ -222,10 +251,10 @@ class booking_potential_user_selector extends booking_user_selector_base {
                 array_merge($searchparams, $params, $sortparams));
 
         if (empty($availableusers)) {
-            return array();
+            return [];
         }
 
-        if ($this->bookanyone) {
+        if ($bookanyone) {
             if ($search) {
                 $groupname = get_string('usersmatching', 'mod_booking');
             } else {
@@ -239,7 +268,7 @@ class booking_potential_user_selector extends booking_user_selector_base {
             }
         }
 
-        return array($groupname => $availableusers);
+        return [$groupname => $availableusers];
     }
 }
 
@@ -253,10 +282,27 @@ class booking_potential_user_selector extends booking_user_selector_base {
  */
 class booking_existing_user_selector extends booking_user_selector_base {
 
+    /**
+     * $potentialusers
+     *
+     * @var mixed
+     */
     public $potentialusers;
 
+    /**
+     * $options
+     *
+     * @var array
+     */
     public $options;
 
+    /**
+     * Constructor
+     *
+     * @param string $name
+     * @param array $options
+     *
+     */
     public function __construct($name, $options) {
         $this->potentialusers = $options['potentialusers'];
         $this->options = $options;
@@ -284,7 +330,7 @@ class booking_existing_user_selector extends booking_user_selector_base {
             $potentialuserids = array_keys ($this->potentialusers);
             list($subscriberssql, $subscribeparams) = $DB->get_in_or_equal($potentialuserids, SQL_PARAMS_NAMED, "in_");
         } else {
-            return array();
+            return [];
         }
 
         $option = new stdClass();
@@ -295,7 +341,7 @@ class booking_existing_user_selector extends booking_user_selector_base {
                 'mod/booking:readallinstitutionusers', $this->options['accesscontext'])) {
 
             $institution = $DB->get_record('booking_options',
-                    array('id' => $this->options['optionid']));
+                    ['id' => $this->options['optionid']]);
 
             $searchparams['onlyinstitution'] = $institution->institution;
             $searchcondition .= ' AND u.institution LIKE :onlyinstitution';
@@ -317,28 +363,29 @@ class booking_existing_user_selector extends booking_user_selector_base {
                 array_merge($searchparams, $sortparams, $subscribeparams));
 
         if (empty($availableusers)) {
-            return array();
+            return [];
         }
 
-        return array(get_string("booked", 'booking') => $availableusers);
+        return [get_string("booked", 'booking') => $availableusers];
     }
 }
 
 /**
  * Outputs a confirm button on a separate page to confirm a booking.
  *
- * @param $optionid
- * @param $user
- * @param $cm
- * @param $url
- * @throws coding_exception
- * @throws moodle_exception
+ * @param int $optionid
+ * @param object $user
+ * @param object $cm
+ * @param string $url
+ *
+ * @return void
+ *
  */
 function booking_confirm_booking($optionid, $user, $cm, $url) {
     global $OUTPUT;
     echo $OUTPUT->header();
 
-    $option = new booking_option($cm->id, $optionid, array(), 0, 0, false);
+    $option = singleton_service::get_instance_of_booking_option($cm->id, $optionid);
 
     $optionidarray['answer'] = $optionid;
     $optionidarray['confirm'] = 1;
@@ -372,7 +419,7 @@ function booking_updatestartenddate($optionid) {
             'SELECT MIN(coursestarttime) AS coursestarttime, MAX(courseendtime) AS courseendtime
              FROM {booking_optiondates}
              WHERE optionid = ?',
-            array($optionid));
+            [$optionid]);
 
         $optionobj = new stdClass();
         $optionobj->id = $optionid;
@@ -418,7 +465,7 @@ function get_rendered_customfields($optiondateid) {
  * @return string The rendered HTML of the full description.
  */
 function get_rendered_eventdescription(int $optionid, int $cmid,
-    int $descriptionparam = DESCRIPTION_WEBSITE, bool $forbookeduser = false): string {
+    int $descriptionparam = MOD_BOOKING_DESCRIPTION_WEBSITE, bool $forbookeduser = false): string {
 
     global $PAGE;
 
@@ -430,13 +477,13 @@ function get_rendered_eventdescription(int $optionid, int $cmid,
     $data = new bookingoption_description($optionid, null, $descriptionparam, true, $forbookeduser);
     $output = $PAGE->get_renderer('mod_booking');
 
-    if ($descriptionparam == DESCRIPTION_ICAL) {
+    if ($descriptionparam == MOD_BOOKING_DESCRIPTION_ICAL) {
         // If this is for ical.
         return $output->render_bookingoption_description_ical($data);
-    } else if ($descriptionparam == DESCRIPTION_MAIL) {
+    } else if ($descriptionparam == MOD_BOOKING_DESCRIPTION_MAIL) {
         // If this is used for a mail - placeholder {bookingdetails}.
         return $output->render_bookingoption_description_mail($data);
-    } else if ($descriptionparam == DESCRIPTION_CALENDAR) {
+    } else if ($descriptionparam == MOD_BOOKING_DESCRIPTION_CALENDAR) {
         // If this is used for an event.
         return $output->render_bookingoption_description_event($data);
     }
@@ -446,12 +493,17 @@ function get_rendered_eventdescription(int $optionid, int $cmid,
 
 /**
  * Helper function to duplicate custom fields belonging to an option date.
- * @param int $optiondateid id of the option date for which all custom fields will be duplicated.
+ *
+ * @param int $oldoptiondateid id of the option date for which all custom fields will be duplicated.
+ * @param int $newoptiondateid
+ *
+ * @return void
+ *
  */
 function optiondate_duplicatecustomfields($oldoptiondateid, $newoptiondateid) {
     global $DB;
     // Duplicate all custom fields which belong to this optiondate.
-    $customfields = $DB->get_records("booking_customfields", array('optiondateid' => $oldoptiondateid));
+    $customfields = $DB->get_records("booking_customfields", ['optiondateid' => $oldoptiondateid]);
     foreach ($customfields as $customfield) {
         $customfield->optiondateid = $newoptiondateid;
         $DB->insert_record("booking_customfields", $customfield);
@@ -460,23 +512,30 @@ function optiondate_duplicatecustomfields($oldoptiondateid, $newoptiondateid) {
 
 /**
  * Helper function to update user calendar events after an option or optiondate (a session of a booking option) has been changed.
- * @param stdClass $option
- * @param stdClass $optiondate
+ *
+ * @param int $optionid
  * @param int $cmid
+ * @param ?stdClass $optiondate
+ *
  */
-function option_optiondate_update_event(stdClass $option, stdClass $optiondate = null, int $cmid) {
+function option_optiondate_update_event(int $optionid, int $cmid, ?stdClass $optiondate = null) {
     global $DB, $USER;
+
+    $settings = singleton_service::get_instance_of_booking_option_settings($optionid);
 
     // We either do this for option or optiondate
     // different way to retrieve the right events.
-    if ($optiondate) {
+    if ($optiondate && !empty($settings->id)) {
         // Check if we have already associated userevents.
         if (!isset($optiondate->eventid) || (!$event = $DB->get_record('event', ['id' => $optiondate->eventid]))) {
 
             // If we don't find the event here, we might still be just switching to multisession.
             // Let's create the event anew.
-            $bocreatedevent = bookingoptiondate_created::create(array('context' => context_module::instance($cmid),
-                'objectid' => $optiondate->id, 'userid' => $USER->id, 'other' => ['optionid' => $option->id]));
+            $bocreatedevent = bookingoptiondate_created::create(['context' => context_module::instance($cmid),
+                                                                'objectid' => $optiondate->id,
+                                                                'userid' => $USER->id,
+                                                                'other' => ['optionid' => $settings->id],
+                                                            ]);
             $bocreatedevent->trigger();
 
             // We have to return false if we have switched from multisession to create the right events.
@@ -511,12 +570,12 @@ function option_optiondate_update_event(stdClass $option, stdClass $optiondate =
                     ON ue.eventid = e.id
                     WHERE ue.optionid = :optionid";
 
-        $allevents = $DB->get_records_sql($sql, ['optionid' => $option->id]);
+        $allevents = $DB->get_records_sql($sql, ['optionid' => $settings->id]);
 
         // Use the option as data object.
-        $data = $option;
+        $data = $settings;
 
-        if ($event = $DB->get_record('event', ['id' => $option->calendarid])) {
+        if ($event = $DB->get_record('event', ['id' => $settings->calendarid])) {
             if ($allevents && count($allevents) > 0) {
                 if ($event && isset($event->description)) {
                     $allevents[] = $event;
@@ -530,11 +589,13 @@ function option_optiondate_update_event(stdClass $option, stdClass $optiondate =
     // We use $data here for $option and $optiondate, the necessary keys are the same.
     foreach ($allevents as $eventrecord) {
         if ($eventrecord->eventtype == 'user') {
-            $eventrecord->description = get_rendered_eventdescription($option->id, $cmid, DESCRIPTION_CALENDAR, true);
+            $eventrecord->description = get_rendered_eventdescription($settings->id, $cmid,
+                MOD_BOOKING_DESCRIPTION_CALENDAR, true);
         } else {
-            $eventrecord->description = get_rendered_eventdescription($option->id, $cmid, DESCRIPTION_CALENDAR, false);
+            $eventrecord->description = get_rendered_eventdescription($settings->id, $cmid,
+                MOD_BOOKING_DESCRIPTION_CALENDAR, false);
         }
-        $eventrecord->name = $option->text;
+        $eventrecord->name = $settings->get_title_with_prefix();
         $eventrecord->timestart = $data->coursestarttime;
         $eventrecord->timeduration = $data->courseendtime - $data->coursestarttime;
         $eventrecord->timesort = $data->coursestarttime;

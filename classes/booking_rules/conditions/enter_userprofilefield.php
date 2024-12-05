@@ -14,6 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * Condition to identify users by entering a value which should match a custom user profile field.
+ *
+ * @package mod_booking
+ * @copyright 2022 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Georg Maißer
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace mod_booking\booking_rules\conditions;
 
 use mod_booking\booking_rules\booking_rule_condition;
@@ -25,8 +34,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot . '/mod/booking/lib.php');
 
 /**
- * Condition to identify users by entering a value
- * which should match a custom user profile field.
+ * Class to handle condition to identify users by entering a value which should match a custom user profile field.
  *
  * @package mod_booking
  * @copyright 2022 Wunderbyte GmbH <info@wunderbyte.at>
@@ -38,6 +46,9 @@ class enter_userprofilefield implements booking_rule_condition {
     /** @var string $conditionname */
     public $conditionname = 'enter_userprofilefield';
 
+    /** @var string $conditionnamestringid Id of localized string for name of rule condition*/
+    protected $conditionnamestringid = 'enteruserprofilefield';
+
     /** @var string $cpfield */
     public $cpfield = null;
 
@@ -46,6 +57,9 @@ class enter_userprofilefield implements booking_rule_condition {
 
     /** @var string $textfield */
     public $textfield = null;
+
+    /** @var string $rulejson a json string for a booking rule */
+    public $rulejson = '';
 
     /**
      * Function to tell if a condition can be combined with a certain booking rule type.
@@ -82,9 +96,10 @@ class enter_userprofilefield implements booking_rule_condition {
      * Add condition to mform.
      *
      * @param MoodleQuickForm $mform
+     * @param ?array $ajaxformdata
      * @return void
      */
-    public function add_condition_to_mform(MoodleQuickForm &$mform, array &$ajaxformdata = null) {
+    public function add_condition_to_mform(MoodleQuickForm &$mform, ?array &$ajaxformdata = null) {
         global $DB;
 
         // Custom user profile field to be checked.
@@ -99,31 +114,35 @@ class enter_userprofilefield implements booking_rule_condition {
             }
 
             $mform->addElement('select', 'condition_enter_userprofilefield_cpfield',
-                get_string('rule_customprofilefield', 'mod_booking'), $customuserprofilefieldsarray);
+                get_string('rulecustomprofilefield', 'mod_booking'), $customuserprofilefieldsarray);
 
             $operators = [
                 '=' => get_string('equals', 'mod_booking'),
-                '~' => get_string('contains', 'mod_booking')
+                '~' => get_string('contains', 'mod_booking'),
             ];
             $mform->addElement('select', 'condition_enter_userprofilefield_operator',
-                get_string('rule_operator', 'mod_booking'), $operators);
+                get_string('ruleoperator', 'mod_booking'), $operators);
 
             $mform->addElement('text', 'condition_enter_userprofilefield_textfield',
-                get_string('condition_textfield', 'mod_booking'));
+                get_string('conditiontextfield', 'mod_booking'));
+            $mform->setType('condition_enter_userprofilefield_textfield', PARAM_TEXT);
         }
     }
 
     /**
      * Get the name of the rule.
+     *
+     * @param bool $localized
      * @return string the name of the rule
      */
     public function get_name_of_condition($localized = true) {
-        return $localized ? get_string($this->conditionname, 'mod_booking') : $this->conditionname;
+        return $localized ? get_string($this->conditionnamestringid, 'mod_booking') : $this->conditionname;
     }
 
     /**
      * Saves the JSON for the condition into the $data object.
-     * @param stdClass &$data form data reference
+     *
+     * @param stdClass $data form data reference
      */
     public function save_condition(stdClass &$data) {
 
@@ -144,7 +163,7 @@ class enter_userprofilefield implements booking_rule_condition {
 
     /**
      * Sets the rule defaults when loading the form.
-     * @param stdClass &$data reference to the default values
+     * @param stdClass $data reference to the default values
      * @param stdClass $record a record from booking_rules
      */
     public function set_defaults(stdClass &$data, stdClass $record) {
@@ -172,10 +191,10 @@ class enter_userprofilefield implements booking_rule_condition {
         $sqlcomparepart = "";
         switch ($this->operator) {
             case '~':
+                $concat = $DB->sql_concat("'%'", ":conditiontextfield", "'%'");
                 $sqlcomparepart = $DB->sql_compare_text("ud.data") .
-                    " LIKE CONCAT('%', :conditiontextfield, '%')
-                      AND :conditiontextfield1 <> ''
-                      AND :conditiontextfield2 IS NOT NULL";
+                    " LIKE $concat
+                      AND :conditiontextfield1 <> ''";
                 break;
             case '=':
             default:
@@ -185,7 +204,6 @@ class enter_userprofilefield implements booking_rule_condition {
 
         $params['conditiontextfield'] = $this->textfield;
         $params['conditiontextfield1'] = $this->textfield;
-        $params['conditiontextfield2'] = $this->textfield;
 
         // We pass the restriction to the userid in the params.
         // If its not 0, we add the restirction.
@@ -196,8 +214,9 @@ class enter_userprofilefield implements booking_rule_condition {
             $anduserid = "AND ud.userid = :userid2";
         }
 
+        $concat = $DB->sql_concat("bo.id", "'-'", "ud.userid");
         // We need the hack with uniqueid so we do not lose entries ...as the first column needs to be unique.
-        $sql->select = " CONCAT(bo.id, '-', ud.userid) uniqueid, " . $sql->select;
+        $sql->select = " $concat uniqueid, " . $sql->select;
         $sql->select .= ", ud.userid userid";
 
         $sql->from .= " JOIN {user_info_data} ud ON $sqlcomparepart";

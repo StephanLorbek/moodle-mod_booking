@@ -59,6 +59,7 @@
         "currency": "EUR",
         "pricecategoryname": "Price",
         "dayofweektime": "FR, 10:30 - 11:45",
+        "sport": "Aerial Yoga",
         "customfields": {
             "sport": [
             "AERIAL YOGA"
@@ -136,24 +137,24 @@
     }
 }}
 
-<p class="m-3">{{#str}} doyouwanttobook, mod_booking, {{title}} {{/str}}</p>
+<p class="m-3">{{#str}} doyouwanttobook, mod_booking, {{{title}}} {{/str}}</p>
 <div class="bookingoption-description-prepagemodal-bookit w-100 ml-3 mr-3 mb-3 mt-1 p-2 text-justify bg-light border border-secondary rounded">
     <div class="container-fluid">
         <div class="row">
             {{#imageurl}}
             <div class="col-md-3">
-                <img class="w-100 rounded" src="{{imageurl}}" alt="{{title}}">
+                <img class="w-100 rounded" src="{{imageurl}}" alt="{{{title}}}">
             </div>
             {{/imageurl}}
             {{#imageurl}}<div class="col-md-9">{{/imageurl}}
             {{^imageurl}}<div class="col-md-12">{{/imageurl}}
-                <h2 class="title" >{{#titleprefix}}{{.}} - {{/titleprefix}}{{title}}</h2>
+                <h2 class="title" >{{{title}}}</h2>
                 <h6 class="h6-category">
                     {{sport}}
                 </h6>
                 <div class="ml-3" {{^teachers}} style="display:none"{{/teachers}}>
                     {{#teachers}}
-                        <span class="mr-1"><i class="fa fa-graduation-cap" aria-hidden="true"></i> {{.}}</span>
+                        <span class="mr-1"><i class="fa fa-graduation-cap" aria-hidden="true"></i> {{firstname}} {{lastname}}</span>
                     {{/teachers}}
                 </div>
                 <ul class="infolist" style="list-style: none;">
@@ -209,13 +210,11 @@
                                 <b>{{{datestring}}}</b>
                             </div>
                             <div {{^customfields}}style="display:none"{{/customfields}}>
-                                <ul>
-                                    {{#customfields}}
-                                        <li>
-                                            {{name}}{{{value}}}
-                                        </li>
-                                    {{/customfields}}
-                                </ul>
+                                {{#customfields}}
+                                    <div>
+                                        {{name}}{{{value}}}
+                                    </div>
+                                {{/customfields}}
                             </div>
                         </div>
                     {{/dates}}

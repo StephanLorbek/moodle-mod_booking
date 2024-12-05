@@ -33,9 +33,9 @@ use context;
 use context_system;
 use core_form\dynamic_form;
 use html_writer;
-use mod_booking\dates_handler;
 use mod_booking\semester;
 use mod_booking\singleton_service;
+use mod_booking\task\task_adhoc_reset_optiondates_for_semester;
 use moodle_url;
 use stdClass;
 
@@ -48,7 +48,7 @@ use stdClass;
  */
 class dynamicchangesemesterform extends dynamic_form {
 
-    /** @param int $cmid */
+    /** @var int $cmid */
     private $cmid = null;
 
     /**
@@ -105,11 +105,21 @@ class dynamicchangesemesterform extends dynamic_form {
      * @return stdClass|null
      */
     public function process_dynamic_submission(): stdClass {
-        global $PAGE;
+        global $USER;
 
         $data = $this->get_data();
 
-        dates_handler::change_semester($data->cmid, $data->choosesemester);
+        $task = new task_adhoc_reset_optiondates_for_semester();
+
+        $taskdata = [
+            'cmid' => $data->cmid,
+            'semesterid' => $data->choosesemester,
+        ];
+        $task->set_custom_data($taskdata);
+        $task->set_userid($USER->id);
+
+        // Now queue the task or reschedule it if it already exists (with matching data).
+        \core\task\manager::reschedule_or_queue_adhoc_task($task);
 
         return $data;
     }
@@ -122,18 +132,11 @@ class dynamicchangesemesterform extends dynamic_form {
 
         $cmid = optional_param('id', 0, PARAM_INT);
 
-        if (empty($this->bookingsettings)) {
-            $bookingsettings = singleton_service::get_instance_of_booking_settings_by_cmid($cmid);
-        }
+        $bookingsettings = singleton_service::get_instance_of_booking_settings_by_cmid($cmid);
 
         $mform = $this->_form;
 
-        $changesemesterlabel = html_writer::tag('b', get_string('changesemester', 'mod_booking'),
-            array('class' => 'changesemesterlabel'));
-
-        $mform->addElement('static', 'changesemesterlabel', $changesemesterlabel);
-
-        $mform->addElement('html', '<div class="alert alert-danger">' .
+        $mform->addElement('html', '<div class="alert alert-danger mt-3">' .
                 get_string('changesemester:warning', 'mod_booking') . '</div>');
 
         $mform->addElement('hidden', 'cmid', 0);
@@ -146,8 +149,10 @@ class dynamicchangesemesterform extends dynamic_form {
             $mform->setDefault('choosesemester', $bookingsettings->semesterid);
         }
 
+        $mform->addElement('advcheckbox', 'confirmchangesemester', get_string('confirmchangesemester', 'mod_booking'));
+
         // Buttons.
-        $this->add_action_buttons();
+        $this->add_action_buttons(false, get_string('changesemester', 'mod_booking'));
     }
 
     /**
@@ -157,7 +162,19 @@ class dynamicchangesemesterform extends dynamic_form {
      * @return array $errors
      */
     public function validation($data, $files): array {
+        global $DB;
+
         $errors = [];
+
+        if (empty($data['confirmchangesemester'])) {
+            $errors['confirmchangesemester'] = get_string('error:confirmthatyouaresure', 'mod_booking');
+        }
+        if (!empty($DB->get_records('task_adhoc', [
+            'component' => 'mod_booking',
+            'classname' => '\mod_booking\task\task_adhoc_reset_optiondates_for_semester',
+        ]))) {
+            $errors['confirmchangesemester'] = get_string('error:taskalreadystarted', 'mod_booking');
+        }
 
         return $errors;
     }

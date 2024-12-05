@@ -40,8 +40,14 @@ class select_student_in_bo implements booking_rule_condition {
     /** @var string $rulename */
     public $conditionname = 'select_student_in_bo';
 
+    /** @var string $conditionnamestringid Id of localized string for name of rule condition*/
+    protected $conditionnamestringid = 'selectstudentinbo';
+
     /** @var string $role */
     public $borole = null;
+
+    /** @var string $rulejson a json string for a booking rule */
+    public $rulejson = '';
 
     /**
      * Function to tell if a condition can be combined with a certain booking rule type.
@@ -76,38 +82,41 @@ class select_student_in_bo implements booking_rule_condition {
      * Only customizable functions need to return their necessary form elements.
      *
      * @param MoodleQuickForm $mform
-     * @param int $optionid
+     * @param ?array $ajaxformdata
      * @return void
      */
-    public function add_condition_to_mform(MoodleQuickForm &$mform, array &$ajaxformdata = null) {
+    public function add_condition_to_mform(MoodleQuickForm &$mform, ?array &$ajaxformdata = null) {
 
         $mform->addElement('static', 'condition_select_student_in_bo', '',
-                get_string('condition_select_student_in_bo_desc', 'mod_booking'));
+                get_string('conditionselectstudentinbo_desc', 'mod_booking'));
 
         $courseroles = [
             -1 => get_string('choose...', 'mod_booking'),
-            STATUSPARAM_BOOKED => get_string('studentbooked', 'mod_booking'),
-            STATUSPARAM_WAITINGLIST => get_string('studentwaitinglist', 'mod_booking'),
-            STATUSPARAM_NOTIFYMELIST => get_string('studentnotificationlist', 'mod_booking'),
-            STATUSPARAM_DELETED => get_string('studentdeleted', 'mod_booking'),
+            MOD_BOOKING_STATUSPARAM_BOOKED => get_string('studentbooked', 'mod_booking'),
+            MOD_BOOKING_STATUSPARAM_WAITINGLIST => get_string('studentwaitinglist', 'mod_booking'),
+            MOD_BOOKING_STATUSPARAM_NOTIFYMELIST => get_string('studentnotificationlist', 'mod_booking'),
+            MOD_BOOKING_STATUSPARAM_DELETED => get_string('studentdeleted', 'mod_booking'),
+            "smallerthan" . MOD_BOOKING_STATUSPARAM_WAITINGLIST => get_string('studentbookedandwaitinglist', 'mod_booking'),
         ];
 
         $mform->addElement('select', 'condition_select_student_in_bo_borole',
-                get_string('condition_select_student_in_bo_roles', 'mod_booking'), $courseroles);
+                get_string('conditionselectstudentinboroles', 'mod_booking'), $courseroles);
 
     }
 
     /**
      * Get the name of the rule.
+     *
+     * @param bool $localized
      * @return string the name of the rule
      */
     public function get_name_of_condition($localized = true) {
-        return $localized ? get_string($this->conditionname, 'mod_booking') : $this->conditionname;
+        return $localized ? get_string($this->conditionnamestringid, 'mod_booking') : $this->conditionname;
     }
 
     /**
      * Save the JSON for all sendmail_daysbefore rules defined in form.
-     * @param stdClass &$data form data reference
+     * @param stdClass $data form data reference
      */
     public function save_condition(stdClass &$data) {
         global $DB;
@@ -127,7 +136,7 @@ class select_student_in_bo implements booking_rule_condition {
 
     /**
      * Sets the rule defaults when loading the form.
-     * @param stdClass &$data reference to the default values
+     * @param stdClass $data reference to the default values
      * @param stdClass $record a record from booking_rules
      */
     public function set_defaults(stdClass &$data, stdClass $record) {
@@ -146,9 +155,11 @@ class select_student_in_bo implements booking_rule_condition {
      * We receive an array of stdclasses with the keys optinid & cmid.
      * @param stdClass $sql
      * @param array $params
-     * @return array
+     *
      */
     public function execute(stdClass &$sql, array &$params) {
+
+        global $DB;
 
         // We pass the restriction to the userid in the params.
         // If its not 0, we add the restirction.
@@ -159,14 +170,23 @@ class select_student_in_bo implements booking_rule_condition {
             $anduserid = "AND ba.userid = :userid2";
         }
 
-        // We need the hack with uniqueid so we do not lose entries ...as the first column needs to be unique.
-        $sql->select = " CONCAT(bo.id, '-', ba.userid) uniqueid, " . $sql->select;
+        $sql->select = " ba.id as baid, " . $sql->select;
         $sql->select .= ", ba.userid userid ";
 
         $sql->from .= " JOIN {booking_answers} ba ON bo.id = ba.optionid ";
 
-        $sql->where .= " AND ba.waitinglist = :borole $anduserid ";
+        switch ($this->borole) {
+            case 'smallerthan' . MOD_BOOKING_STATUSPARAM_WAITINGLIST:
+                $operator = '<=';
+                $borole = MOD_BOOKING_STATUSPARAM_WAITINGLIST;
+                break;
+            default:
+                $operator = '=';
+                $borole = $this->borole;
+        }
 
-        $params['borole'] = $this->borole;
+        $sql->where .= " AND ba.waitinglist $operator :borole $anduserid ";
+
+        $params['borole'] = $borole;
     }
 }

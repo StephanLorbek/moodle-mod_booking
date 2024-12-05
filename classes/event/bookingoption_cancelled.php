@@ -14,9 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-
 /**
- * The bookingoption_booked event.
+ * The bookingoption_cancelled event.
  *
  * @package mod_booking
  * @copyright 2014 David Bogner, http://www.edulabs.org
@@ -35,21 +34,45 @@ namespace mod_booking\event;
  */
 class bookingoption_cancelled extends \core\event\base {
 
+    /**
+     * Init
+     *
+     * @return void
+     *
+     */
     protected function init() {
         $this->data['crud'] = 'u'; // Meaning: u = update.
         $this->data['edulevel'] = self::LEVEL_TEACHING;
         $this->data['objecttable'] = 'booking_options';
     }
 
+    /**
+     * Get name
+     *
+     * @return string
+     *
+     */
     public static function get_name() {
-        return get_string('bookingoption_cancelled', 'booking');
+        return get_string('bookingoptioncancelled', 'booking');
     }
 
+    /**
+     * Get description
+     *
+     * @return string
+     *
+     */
     public function get_description() {
         return "The user with id {$this->userid} cancelled the booking option with id {$this->objectid}.";
     }
 
+    /**
+     * Get_url
+     *
+     * @return \moodle_url
+     *
+     */
     public function get_url() {
-        return new \moodle_url('/mod/booking/view.php', array('id' => $this->contextinstanceid));
+        return new \moodle_url('/mod/booking/view.php', ['id' => $this->contextinstanceid]);
     }
 }

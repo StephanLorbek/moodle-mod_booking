@@ -12,7 +12,7 @@
     along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 }}
 {{!
-    @template mod_booking/table
+    @template mod_booking/shortcodes_table
     Template which defines a mooduell view page.
     Classes required for JS:
     * none
@@ -111,7 +111,7 @@
 
 {{> local_wunderbyte_table/pagination }}
 
-
+{{^norecords}}
 {{#js}}
     require(['local_wunderbyte_table/init'], function(init) {
     init.init('{{idstring}}', '{{encodedtable}}');
@@ -120,3 +120,4 @@
     init.init();
     });
 {{/js}}
+{{/norecords}}

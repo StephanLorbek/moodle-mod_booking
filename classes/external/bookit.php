@@ -49,16 +49,17 @@ require_once($CFG->libdir . '/externallib.php');
 class bookit extends external_api {
 
     /**
-     * Describes the parameters for add_item_to_cart.
+     * Describes the parameters for bookit.
      *
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(array(
+        return new external_function_parameters([
             'area' => new external_value(PARAM_RAW, 'area'),
             'itemid' => new external_value(PARAM_INT, 'itemid'),
             'userid' => new external_value(PARAM_INT, 'userid'),
-            )
+            'data' => new external_value(PARAM_RAW, 'data'),
+            ]
         );
     }
 
@@ -68,19 +69,21 @@ class bookit extends external_api {
      * @param string $area
      * @param int $itemid
      * @param int $userid
+     * @param string $data
      *
      * @return array
      */
-    public static function execute(string $area, int $itemid, int $userid): array {
+    public static function execute(string $area, int $itemid, int $userid, string $data): array {
         $params = self::validate_parameters(self::execute_parameters(), [
             'itemid' => $itemid,
             'area' => $area,
             'userid' => $userid,
+            'data' => $data,
         ]);
 
         require_login();
 
-        $response = booking_bookit::bookit($params['area'], $params['itemid'], $params['userid']);
+        $response = booking_bookit::bookit($params['area'], $params['itemid'], $params['userid'], $params['data']);
 
         $status = $response['status'];
         $message = $response['message'];
@@ -113,12 +116,12 @@ class bookit extends external_api {
      * @return external_single_structure
      */
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure(array(
-            'status' => new external_value(PARAM_INT, '1 for success', (bool) VALUE_DEFAULT, 0),
-            'message' => new external_value(PARAM_RAW, 'Message if any', (bool) VALUE_DEFAULT, ''),
-            'template' => new external_value(PARAM_TEXT, 'Button template', (bool) VALUE_DEFAULT, ''),
-            'json' => new external_value(PARAM_RAW, 'Data as json', (bool) VALUE_DEFAULT, ''),
-            )
+        return new external_single_structure([
+            'status' => new external_value(PARAM_INT, '1 for success', VALUE_DEFAULT, 0),
+            'message' => new external_value(PARAM_RAW, 'Message if any', VALUE_DEFAULT, ''),
+            'template' => new external_value(PARAM_TEXT, 'Button template', VALUE_DEFAULT, ''),
+            'json' => new external_value(PARAM_RAW, 'Data as json', VALUE_DEFAULT, ''),
+            ]
         );
     }
 }

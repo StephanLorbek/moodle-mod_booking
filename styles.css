@@ -157,13 +157,6 @@ tr.mod-booking-invisible {
     color: red;
 }
 
-.wunderbyte-table-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-    padding: 10px;
-    grid-gap: 20px;
-}
-
 .wunderbyte-table-grid .course-card-footer {
     display: flex;
     justify-content: space-between;
@@ -289,17 +282,6 @@ if there only was one booking option. */
     overflow: visible;
 }
 
-#page-admin-mod-booking-optionformconfig .col-md-3 {
-    display: none;
-}
-
-#page-admin-mod-booking-optionformconfig .mform {
-    padding-top: 15px;
-    padding-bottom: 5px;
-    background-color: ghostwhite;
-    border-radius: 12px;
-}
-
 /* Booking rules. */
 #page-mod-booking-edit-rules .booking-rules-cards {
     padding-top: 15px;
@@ -371,6 +353,10 @@ if there only was one booking option. */
     width: max-content;
 }
 
+#page-mod-booking-report #studentsform table {
+    margin-bottom: 15px;
+}
+
 .prepage-booking-page {
     margin-top: 30px;
     margin-bottom: 30px;
@@ -429,4 +415,91 @@ if there only was one booking option. */
     background: #357a32; /* Bootstrap success color.*/
     margin: 7px 7px;
     text-align: center;
+}
+
+#page-mod-booking-optionview ul.infolist {
+    padding-inline-start: 10px;
+}
+
+#page-mod-booking-editoptions .editoption-youareediting-alert {
+    position: sticky;
+    top: 5px;
+    z-index: 999;
+    width: 70%;
+}
+
+#page-mod-booking-view .wunderbyte-table-list .action {
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+
+#page-mod-booking-view .mod-booking-view-card-image {
+    height: 220px;
+    object-fit: cover;
+}
+
+#page-mod-booking-view .mod-booking-view-list-image {
+    width: inherit;
+    height: 100%; /* Fallback for unsupported browsers */
+    /* stylelint-disable-next-line declaration-block-no-duplicate-properties, csstree/validator */
+    height: -webkit-fill-available; /* WebKit-specific implementation */
+    object-fit: cover;
+    max-height: 250px;
+}
+
+#page-mod-booking-view .mod-booking-view-list-image.rounded-left {
+    box-shadow: 5px 0 10px 1px rgba(0, 0, 0, 0.2);
+}
+
+#page-mod-booking-view .mod-booking-view-list-image.rounded-right {
+    box-shadow: -5px 0 10px 1px rgba(0, 0, 0, 0.2);
+}
+
+#page-mod-booking-editoptions div[id^='fgroup_id_buttonar_'] {
+    position: sticky;
+    bottom: 5px;
+}
+
+#page-mod-booking-editoptions div[id^='fgroup_id_buttonar_'] input[name='submitbutton'],
+#page-mod-booking-editoptions div[id^='fgroup_id_buttonar_'] input[name='cancel'] {
+    box-shadow: rgba(14, 30, 37, 0.12) 0 2px 4px 0, rgba(14, 30, 37, 0.32) 0 2px 16px 0;
+}
+
+#page-mod-booking-mod #fgroup_id_buttonar {
+    position: sticky;
+    bottom: 5px;
+}
+
+#page-mod-booking-mod #fgroup_id_buttonar  input[name='submitbutton'],
+#page-mod-booking-mod #fgroup_id_buttonar  input[name='submitbutton2'],
+#page-mod-booking-mod #fgroup_id_buttonar  input[name='cancel'] {
+    box-shadow: rgba(14, 30, 37, 0.12) 0 2px 4px 0, rgba(14, 30, 37, 0.32) 0 2px 16px 0;
+}
+
+.bookinglinkbutton:not(#page-mod-booking-optionview .bookinglinkbutton) {
+    background: var(--primary);
+    border-radius: 8px;
+    color: white;
+    text-decoration: none;
+}
+
+#page-mod-booking-editoptions .changed-old-value {
+    color: red;
+}
+
+.disabled-profeature {
+    color: grey;
+    pointer-events: none; /* Disables clicks */
+    opacity: 0.6; /* Makes it appear lighter */
+    cursor: not-allowed; /* Shows a not-allowed cursor */
+}
+
+.disabled-profeature a {
+    color: grey; /* Also greys out the link */
+    text-decoration: none; /* Optional: Remove underline if it's styled */
+}
+
+.disabled-profeature a:hover {
+    color: grey; /* Ensures hover doesn’t change color */
 }

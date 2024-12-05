@@ -15,8 +15,8 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * This is the main entrance point for the booking plugin
- * showing a table of all booking options.
+ * This is the main entrance point for the booking plugin showing a table of all booking options.
+ *
  * Completely rebuilt in January 2023.
  *
  * @package mod_booking
@@ -26,6 +26,7 @@
  */
 
 use mod_booking\output\business_card;
+use mod_booking\output\mobile;
 use mod_booking\output\view;
 use mod_booking\singleton_service;
 
@@ -35,7 +36,7 @@ require_once($CFG->dirroot . '/comment/lib.php');
 // No guest autologin.
 require_login(0, false);
 
-global $DB, $PAGE, $OUTPUT, $USER;
+global $DB, $PAGE, $OUTPUT, $USER, $CFG;
 
 $cmid = required_param('id', PARAM_INT); // Course Module ID.
 $optionid = optional_param('optionid', 0, PARAM_INT);
@@ -46,9 +47,17 @@ list($course, $cm) = get_course_and_cm_from_cmid($cmid, 'booking');
 require_course_login($course, false, $cm);
 $context = context_module::instance($cm->id);
 
+// phpcs:disable
+// $return = mobile::mobile_system_view([]);
+// $settings = singleton_service::get_instance_of_booking_option_settings(8485);
+// $data = $settings->return_settings_as_stdclass();
+// phpcs:enable
+
+require_capability('mod/booking:view', $context);
+
 // URL params.
 $urlparams = [
-    'id' => $cmid
+    'id' => $cmid,
 ];
 // SQL params.
 $params = [];
@@ -60,7 +69,7 @@ $PAGE->set_context($context);
 
 // Trigger course_module_viewed event.
 $event = \mod_booking\event\course_module_viewed::create(
-    array('objectid' => $cm->instance, 'context' => $context));
+    ['objectid' => $cm->instance, 'context' => $context]);
 $event->add_record_snapshot('course', $course);
 $event->trigger();
 
@@ -99,7 +108,7 @@ $files = $fs->get_area_files($context->id, 'mod_booking', 'myfilemanager',
 if (count($files) > 1) {
     echo html_writer::start_tag('div');
     echo html_writer::tag('label', '<i class="fa fa-paperclip" aria-hidden="true"></i> ' .
-        get_string('attachedfiles', 'mod_booking') . ': ', array('class' => 'ml-3 mt-1 mb-3 bold'));
+        get_string('attachedfiles', 'mod_booking') . ': ', ['class' => 'ml-3 mt-1 mb-3 bold']);
 
     foreach ($files as $file) {
         if ($file->get_filesize() > 0) {
@@ -130,11 +139,13 @@ if (!empty($CFG->usetags)) {
 $view = new view($cmid, $whichview, $optionid);
 echo $output->render_view($view);
 
-// Wunderbyte info and footer.
-$logourl = new moodle_url('/mod/booking/pix/wb-logo.png');
+if (!get_config('booking', 'turnoffwunderbytelogo')) {
+    // Wunderbyte info and footer.
+    $logourl = new moodle_url('/mod/booking/pix/wb-logo.png');
 
-echo $OUTPUT->box('<a href="https://www.wunderbyte.at" target="_blank"><img src="' .
-    $logourl . '" width="200px" alt="Wunderbyte logo"><br>' .
-    get_string('createdbywunderbyte', 'mod_booking') . "</a>", 'box mdl-align');
+    echo $OUTPUT->box('<a href="https://www.wunderbyte.at" target="_blank"><img src="' .
+        $logourl . '" width="200px" alt="Wunderbyte logo"><br>' .
+        get_string('createdbywunderbyte', 'mod_booking') . "</a>", 'box mdl-align');
+}
 
 echo $OUTPUT->footer();

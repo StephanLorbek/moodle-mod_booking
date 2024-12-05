@@ -26,6 +26,7 @@
 namespace mod_booking\output;
 
 use context_module;
+use context_system;
 use mod_booking\booking_answers;
 use mod_booking\booking_option_settings;
 use mod_booking\singleton_service;
@@ -48,7 +49,7 @@ class col_availableplaces implements renderable, templatable {
     /** @var booking_answers $bookinganswers instance of class */
     private $bookinganswers = null;
 
-    /** @var stdClass $buyforuser user stdclass if we buy for user */
+    /** @var \stdClass $buyforuser user stdclass if we buy for user */
     private $buyforuser = null;
 
     /** @var bool $showmanageresponses */
@@ -65,10 +66,12 @@ class col_availableplaces implements renderable, templatable {
 
     /**
      * The constructor takes the values from db.
-     * @param stdClass $values
+     *
+     * @param mixed $values
      * @param booking_option_settings $settings
+     * @param ?\stdClass $buyforuser
      */
-    public function __construct($values, booking_option_settings $settings, $buyforuser = null) {
+    public function __construct($values, booking_option_settings $settings, ?\stdClass $buyforuser = null) {
         global $CFG;
 
         $this->buyforuser = $buyforuser;
@@ -77,18 +80,33 @@ class col_availableplaces implements renderable, templatable {
         $cmid = $settings->cmid;
         $optionid = $settings->id;
 
-        $context = context_module::instance($cmid);
-        if (has_capability('mod/booking:updatebooking', $context) ||
-             has_capability('mod/booking:addeditownoption', $context)) {
+        $syscontext = context_system::instance();
+        $modcontext = context_module::instance($cmid);
+
+        $canviewreport = (
+            has_capability('mod/booking:viewreports', $syscontext)
+            || has_capability('mod/booking:updatebooking', $modcontext)
+            || has_capability('mod/booking:updatebooking', $syscontext)
+            || booking_check_if_teacher($optionid)
+        );
+
+        if ($canviewreport) {
+
             $this->showmanageresponses = true;
 
             // Add a link to redirect to the booking option.
-            $link = new moodle_url($CFG->wwwroot . '/mod/booking/report.php', array(
+            $link = new moodle_url($CFG->wwwroot . '/mod/booking/report.php', [
                 'id' => $cmid,
-                'optionid' => $optionid
-            ));
+                'optionid' => $optionid,
+            ]);
             // Use html_entity_decode to convert "&amp;" to a simple "&" character.
-            $this->manageresponsesurl = html_entity_decode($link->out());
+            if ($CFG->version >= 2023042400) {
+                // Moodle 4.2 needs second param.
+                $this->manageresponsesurl = html_entity_decode($link->out(), ENT_QUOTES);
+            } else {
+                // Moodle 4.1 and older.
+                $this->manageresponsesurl = html_entity_decode($link->out(), ENT_COMPAT);
+            }
         }
 
         if ($this->buyforuser) {
@@ -102,6 +120,15 @@ class col_availableplaces implements renderable, templatable {
         // We need to pop out the first value which is by itself another array containing the information we need.
         $bookinginformation = array_pop($fullbookinginformation);
 
+        // Get maxanswers from cache if exist.
+        // phpcs:ignore moodle.Commenting.TodoComment.MissingInfoInline
+        // TODO: how about entire option settings?
+        $cache = \cache::make('mod_booking', 'bookingoptionsettings');
+        $cachedoption = $cache->get($settings->id);
+        if (isset($cachedoption->maxanswers)) {
+            $bookinginformation['maxanswers'] = $cachedoption->maxanswers;
+        }
+
         // We need this to render a link to manage bookings in the template.
         if (!empty($this->showmanageresponses) && $this->showmanageresponses == true) {
             if (is_array($bookinginformation)) {
@@ -110,56 +137,8 @@ class col_availableplaces implements renderable, templatable {
             }
         }
 
-        // PRO feature: Info texts instead of the actual booking numbers.
-        // Booking places.
-        if (!has_capability('mod/booking:updatebooking', $context) &&
-            get_config('booking', 'bookingplacesinfotexts')
-            && !empty($bookinginformation['maxanswers'])) {
-
-            $bookinginformation['showbookingplacesinfotext'] = true;
-
-            $bookingplaceslowpercentage = get_config('booking', 'bookingplaceslowpercentage');
-            $actualpercentage = ($bookinginformation['freeonlist'] / $bookinginformation['maxanswers']) * 100;
-
-            if ($bookinginformation['freeonlist'] == 0) {
-                // No places left.
-                $bookinginformation['bookingplacesinfotext'] = get_string('bookingplacesfullmessage', 'mod_booking');
-                $bookinginformation['bookingplacesclass'] = 'text-danger';
-            } else if ($actualpercentage <= $bookingplaceslowpercentage) {
-                // Only a few places left.
-                $bookinginformation['bookingplacesinfotext'] = get_string('bookingplaceslowmessage', 'mod_booking');
-                $bookinginformation['bookingplacesclass'] = 'text-danger';
-            } else {
-                // Still enough places left.
-                $bookinginformation['bookingplacesinfotext'] = get_string('bookingplacesenoughmessage', 'mod_booking');
-                $bookinginformation['bookingplacesclass'] = 'text-success';
-            }
-        }
-        // Waiting list places.
-        if (!has_capability('mod/booking:updatebooking', $context) &&
-            get_config('booking', 'waitinglistinfotexts')
-            && !empty($bookinginformation['maxoverbooking'])) {
-
-            $bookinginformation['showwaitinglistplacesinfotext'] = true;
-
-            $waitinglistlowpercentage = get_config('booking', 'waitinglistlowpercentage');
-            $actualwlpercentage = ($bookinginformation['freeonwaitinglist'] /
-                $bookinginformation['maxoverbooking']) * 100;
-
-            if ($bookinginformation['freeonwaitinglist'] == 0) {
-                // No places left.
-                $bookinginformation['waitinglistplacesinfotext'] = get_string('waitinglistfullmessage', 'mod_booking');
-                $bookinginformation['waitinglistplacesclass'] = 'text-danger';
-            } else if ($actualwlpercentage <= $waitinglistlowpercentage) {
-                // Only a few places left.
-                $bookinginformation['waitinglistplacesinfotext'] = get_string('waitinglistlowmessage', 'mod_booking');
-                $bookinginformation['waitinglistplacesclass'] = 'text-danger';
-            } else {
-                // Still enough places left.
-                $bookinginformation['waitinglistplacesinfotext'] = get_string('waitinglistenoughmessage', 'mod_booking');
-                $bookinginformation['waitinglistplacesclass'] = 'text-success';
-            }
-        }
+        // Here we add the availability info texts to the $bookinginformation array.
+        booking_answers::add_availability_info_texts_to_booking_information($bookinginformation);
 
         $this->bookinginformation = $bookinginformation;
     }

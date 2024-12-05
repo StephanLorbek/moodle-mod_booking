@@ -22,12 +22,12 @@
 
     Data attributes required for JS:
     * data-region
-    
+
     Example context (json):
     {
         "dates": [
             {
-                "datestring": "datestring",
+                "datestring": "2023-06-01 09:00:00 - 11:00:00",
                 "customfields": [
                     {
                         "name" : "custom field name",
@@ -42,14 +42,15 @@
     <b>{{#str}} sessions, mod_booking {{/str}}:</b>
     <ul>
         {{#dates}}
-            <li>{{{datestring}}}</li>
-            <ul>
-                {{#customfields}}
-                    <li>
-                        {{name}}{{{value}}}
-                    </li>
-                {{/customfields}}
-            </ul>
+            <li>{{{datestring}}}
+                {{#customfields.0}}
+                    {{#customfields}}
+                        <div>
+                            {{name}}{{{value}}}
+                        </div>
+                    {{/customfields}}
+                {{/customfields.0}}
+            </li>
         {{/dates}}
     </ul>
 </div>

@@ -42,8 +42,8 @@ class backup_booking_activity_structure_step extends backup_activity_structure_s
         // Notice: Semesters and holidays are not backed up with booking instances, as they are set for the whole site.
 
         // Define each element separated.
-        $booking = new backup_nested_element('booking', array('id'),
-                array('course', 'name', 'intro', 'introformat', 'bookingmanager', 'mailtemplatessource', 'sendmail',
+        $booking = new backup_nested_element('booking', ['id'],
+                ['course', 'name', 'intro', 'introformat', 'bookingmanager', 'mailtemplatessource', 'sendmail',
                     'copymail', 'allowupdate', 'bookingpolicy', 'bookingpolicyformat', 'timeopen', 'timeclose', 'timemodified',
                     'autoenrol', 'bookedtext', 'waitingtext', 'statuschangetext', 'deletedtext', 'bookingchangedtext',
                     'maxperuser', 'sendmailtobooker', 'duration', 'points', 'organizatorname',
@@ -60,12 +60,13 @@ class backup_booking_activity_structure_step extends backup_activity_structure_s
                     'beforebookedtext', 'beforecompletedtext', 'aftercompletedtext',
                     'signinsheetfields', 'comments', 'ratings', 'removeuseronunenrol', 'teacherroleid', 'allowupdatedays',
                     'templateid', 'showlistoncoursepage', 'coursepageshortinfo', 'bookingimagescustomfield',
-                    'defaultoptionsort', 'showviews', 'customtemplateid', 'autcractive', 'autcrprofile', 'autcrvalue',
-                    'autcrtemplate', 'semesterid'));
+                    'defaultoptionsort', 'defaultsortorder', 'showviews', 'customtemplateid', 'autcractive', 'autcrprofile',
+                    'autcrvalue', 'autcrtemplate', 'semesterid', 'iselective', 'maxcredits', 'consumeatonce', 'enforceorder',
+                ]);
 
         $options = new backup_nested_element('options');
-        $option = new backup_nested_element('option', array('id'),
-                array('text', 'maxanswers', 'maxoverbooking', 'minanswers', 'bookingopeningtime', 'bookingclosingtime', 'courseid',
+        $option = new backup_nested_element('option', ['id'],
+                ['text', 'maxanswers', 'maxoverbooking', 'minanswers', 'bookingopeningtime', 'bookingclosingtime', 'courseid',
                     'coursestarttime', 'courseendtime', 'enrolmentstatus', 'description', 'descriptionformat',
                     'limitanswers', 'timemodified', 'addtocalendar', 'calendarid', 'pollurl',
                     'groupid', 'sent', 'sent2', 'sentteachers', 'location', 'institution', 'address',
@@ -73,49 +74,63 @@ class backup_booking_activity_structure_step extends backup_activity_structure_s
                     'notificationtext', 'notificationtextformat', 'disablebookingusers',
                     'beforebookedtext', 'beforecompletedtext', 'aftercompletedtext', 'shorturl', 'duration',
                     'parentid', 'semesterid', 'dayofweektime', 'invisible', 'annotation', 'identifier', 'titleprefix',
-                    'priceformulaadd', 'priceformulamultiply', 'priceformulaoff', 'dayofweek', 'availability'
-                ));
+                    'priceformulaadd', 'priceformulamultiply', 'priceformulaoff', 'dayofweek', 'availability',
+                    'status', 'responsiblecontact', 'credits', 'sortorder', 'json', 'sqlfilter',
+                ]);
 
         $answers = new backup_nested_element('answers');
-        $answer = new backup_nested_element('answer', array('id'),
-                array('bookingid', 'optionid', 'userid', 'timemodified', 'completed', 'timecreated',
-                    'waitinglist', 'frombookingid', 'numrec', 'status', 'notes'));
+        $answer = new backup_nested_element('answer', ['id'],
+                ['bookingid', 'optionid', 'userid', 'timemodified', 'completed', 'timecreated',
+                    'waitinglist', 'frombookingid', 'numrec', 'status', 'notes',
+                ]);
 
         $optiondates = new backup_nested_element('optiondates');
-        $optiondate = new backup_nested_element('optiondate', array('id'),
-                array('bookingid', 'optionid', 'eventid', 'coursestarttime', 'courseendtime', 'daystonotify', 'sent'));
+        $optiondate = new backup_nested_element('optiondate', ['id'],
+                ['bookingid', 'optionid', 'eventid', 'coursestarttime', 'courseendtime', 'daystonotify', 'sent']);
 
         $optiondatesteachers = new backup_nested_element('optiondates_teachers');
-        $optiondatesteacher = new backup_nested_element('optiondates_teacher', array('id'),
-                array('optiondateid', 'userid'));
+        $optiondatesteacher = new backup_nested_element('optiondates_teacher', ['id'],
+                ['optiondateid', 'userid']);
 
         $categories = new backup_nested_element('categories');
-        $category = new backup_nested_element('category', array('id'),
-                array('cid', 'name'));
+        $category = new backup_nested_element('category', ['id'],
+                ['cid', 'name']);
 
         $teachers = new backup_nested_element('teachers');
-        $teacher = new backup_nested_element('teacher', array('id'),
-                array('bookingid', 'optionid', 'userid', 'completed'));
+        $teacher = new backup_nested_element('teacher', ['id'],
+                ['bookingid', 'optionid', 'userid', 'completed']);
 
         $tags = new backup_nested_element('tags');
-        $tag = new backup_nested_element('tag', array('id'),
-                array('tag', 'text', 'textformat'));
+        $tag = new backup_nested_element('tag', ['id'],
+                ['tag', 'text', 'textformat']);
 
         $others = new backup_nested_element('others');
-        $other = new backup_nested_element('other', array('id'),
-                array('optionid', 'otheroptionid', 'userslimit'));
+        $other = new backup_nested_element('other', ['id'],
+                ['optionid', 'otheroptionid', 'userslimit']);
 
         $prices = new backup_nested_element('prices');
-        $price = new backup_nested_element('price', array('id'),
-                array('itemid', 'area', 'pricecategoryidentifier', 'price', 'currency'));
+        $price = new backup_nested_element('price', ['id'],
+                ['itemid', 'area', 'pricecategoryidentifier', 'price', 'currency']);
 
-        $entitiesrelations = new backup_nested_element('entitiesrelations');
-        $entitiesrelation = new backup_nested_element('entitiesrelation', array('id'),
-                array('entityid', 'modulename', 'instanceid', 'timecreated'));
+        // Entities can be set for whole options...
+        $entitiesrelationsforoptions = new backup_nested_element('entitiesrelationsforoptions');
+        $entitiesrelationforoption = new backup_nested_element('entitiesrelationforoption', ['id'],
+                ['entityid', 'component', 'area', 'instanceid', 'timecreated']);
+        $entitiesrelationsforoptions->add_child($entitiesrelationforoption);
+
+        // ...or for individual optiondates.
+        $entitiesrelationsforoptiondates = new backup_nested_element('entitiesrelationsforoptiondates');
+        $entitiesrelationforoptiondate = new backup_nested_element('entitiesrelationforoptiondate', ['id'],
+                ['entityid', 'component', 'area', 'instanceid', 'timecreated']);
+        $entitiesrelationsforoptiondates->add_child($entitiesrelationforoptiondate);
 
         $customfields = new backup_nested_element('customfields');
-        $customfield = new backup_nested_element('customfield', array('id'),
-                array('bookingid', 'optionid', 'optiondateid', 'cfgname', 'value'));
+        $customfield = new backup_nested_element('customfield', ['id'],
+                ['bookingid', 'optionid', 'optiondateid', 'cfgname', 'value']);
+
+        $subbookingoptions = new backup_nested_element('subbookingoptions');
+        $subbookingoption = new backup_nested_element('subbookingoption', ['id'],
+                ['optionid', 'name', 'type', 'json', 'block']);
 
         // Build the tree.
         $booking->add_child($options);
@@ -139,34 +154,38 @@ class backup_booking_activity_structure_step extends backup_activity_structure_s
         $booking->add_child($tags);
         $tags->add_child($tag);
 
+        $booking->add_child($customfields);
+        $customfields->add_child($customfield);
+
         $option->add_child($others);
         $others->add_child($other);
 
         $option->add_child($prices);
         $prices->add_child($price);
 
-        $option->add_child($entitiesrelations);
-        $entitiesrelations->add_child($entitiesrelation);
+        // We have entitiesrelations for both options and optiondates!
+        $option->add_child($entitiesrelationsforoptions);
+        $optiondate->add_child($entitiesrelationsforoptiondates);
 
-        $booking->add_child($customfields);
-        $customfields->add_child($customfield);
+        $option->add_child($subbookingoptions);
+        $subbookingoptions->add_child($subbookingoption);
 
         // Define sources.
-        $booking->set_source_table('booking', array('id' => backup::VAR_ACTIVITYID));
+        $booking->set_source_table('booking', ['id' => backup::VAR_ACTIVITYID]);
 
-        $option->set_source_sql('SELECT * FROM {booking_options} WHERE bookingid = ?', array(backup::VAR_PARENTID));
+        $option->set_source_sql('SELECT * FROM {booking_options} WHERE bookingid = ?', [backup::VAR_PARENTID]);
 
-        $category->set_source_table('booking_category', array('course' => '../../course'));
-        $tag->set_source_table('booking_tags', array('courseid' => '../../course'));
-        $other->set_source_table('booking_other', array('optionid' => backup::VAR_PARENTID));
-        $optiondate->set_source_table('booking_optiondates', array('bookingid' => backup::VAR_PARENTID));
-        $customfield->set_source_table('booking_customfields', array('bookingid' => backup::VAR_PARENTID));
+        $category->set_source_table('booking_category', ['course' => '../../course']);
+        $tag->set_source_table('booking_tags', ['courseid' => '../../course']);
+        $other->set_source_table('booking_other', ['optionid' => backup::VAR_PARENTID]);
+        $optiondate->set_source_table('booking_optiondates', ['bookingid' => backup::VAR_PARENTID]);
+        $customfield->set_source_table('booking_customfields', ['bookingid' => backup::VAR_PARENTID]);
 
         // Only backup (or duplicate) teachers, if config setting is set.
         if (get_config('booking', 'duplicationrestoreteachers')) {
-            $teacher->set_source_table('booking_teachers', array('bookingid' => backup::VAR_PARENTID));
+            $teacher->set_source_table('booking_teachers', ['bookingid' => backup::VAR_PARENTID]);
             // Also backup teaching reports (which teacher was there at which session).
-            $optiondatesteacher->set_source_table('booking_optiondates_teachers', array('optiondateid' => backup::VAR_PARENTID));
+            $optiondatesteacher->set_source_table('booking_optiondates_teachers', ['optiondateid' => backup::VAR_PARENTID]);
         }
 
         // Only backup (or duplicate) prices, if config setting is set.
@@ -175,17 +194,25 @@ class backup_booking_activity_structure_step extends backup_activity_structure_s
             /* IMPORTANT: Once we support subbookings, we might have different areas than 'option'
             and this means 'itemid' might be something else than an optionid.
             So we have to find out, if we still can set the params like this. */
-            $price->set_source_table('booking_prices', array('itemid' => backup::VAR_PARENTID));
+            $price->set_source_table('booking_prices', ['itemid' => backup::VAR_PARENTID]);
         }
 
         // Only backup (or duplicate) entities, if config setting is set AND if entities are available.
         if (get_config('booking', 'duplicationrestoreentities') && class_exists('local_entities\entitiesrelation_handler')) {
-            $entitiesrelation->set_source_table('local_entities_relations', ['instanceid' => backup::VAR_PARENTID]);
+            $entitiesrelationforoption->set_source_table('local_entities_relations',
+                ['instanceid' => backup::VAR_PARENTID]);
+            $entitiesrelationforoptiondate->set_source_table('local_entities_relations',
+                ['instanceid' => backup::VAR_PARENTID]);
+        }
+
+        // Only backup (or duplicate) subbookingoptions, if config setting is set.
+        if (get_config('booking', 'duplicationrestoresubbookings')) {
+            $subbookingoption->set_source_table('booking_subbooking_options', ['optionid' => backup::VAR_PARENTID]);
         }
 
         // All the rest of elements only happen if we are including user info.
         if ($userinfo) {
-            $answer->set_source_table('booking_answers', array('bookingid' => backup::VAR_PARENTID));
+            $answer->set_source_table('booking_answers', ['bookingid' => backup::VAR_PARENTID]);
         }
 
         // Define id annotations.

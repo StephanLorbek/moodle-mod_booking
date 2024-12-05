@@ -23,27 +23,62 @@
  */
 
 use mod_booking\booking_rules\booking_rules;
-use mod_booking\booking_rules\rules_info;
-use mod_booking\form\rulesform;
 use mod_booking\utils\wb_payment;
 
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/booking/locallib.php');
 require_once($CFG->libdir . '/adminlib.php');
 
+
+$cmid = optional_param('cmid', 0, PARAM_INT);
+$contextid = optional_param('contextid', 0, PARAM_INT);
+
+
 global $DB;
 
 // No guest autologin.
 require_login(0, false);
 
-admin_externalpage_setup('modbookingeditrules');
+$urlparams = [];
 
-$settingsurl = new moodle_url('/admin/category.php', ['category' => 'modbookingfolder']);
+if (empty($cmid) && empty($contextid)) {
+    $contextid = context_system::instance()->id;
+} else {
+    if (!empty($cmid)) {
+        [$course, $cm] = get_course_and_cm_from_cmid($cmid, 'booking');
+        require_course_login($course, false, $cm);
+        $context = context_module::instance($cmid);
+        $contextid = $context->id;
+        $urlparams = ['cmid' => $cmid];
+    } else {
+        $contextid = $contextid;
+    }
+}
 
-$url = new moodle_url('/mod/booking/edit_rules.php');
+if (empty($urlparams)) {
+    $urlparams = ['contextid' => 1];
+}
+
+
+$context = context::instance_by_id($contextid);
+
+require_capability('mod/booking:editbookingrules', $context);
+
+$PAGE->set_context($context);
+
+$url = new moodle_url('/mod/booking/edit_rules.php', $urlparams);
 $PAGE->set_url($url);
 
-$PAGE->set_pagelayout('admin');
+// In Moodle 4.0+ we want to turn the instance description off on every page except view.php.
+$PAGE->activityheader->disable();
+
+if ($contextid == 1) {
+    admin_externalpage_setup('modbookingeditrules');
+    $PAGE->set_pagelayout('admin');
+} else {
+    $PAGE->set_pagelayout('standard');
+}
+
 $PAGE->add_body_class('limitedwidth');
 $PAGE->set_pagetype('mod-booking-edit-rules');
 
@@ -51,22 +86,25 @@ $PAGE->set_title(
     format_string($SITE->shortname) . ': ' . get_string('bookingrules', 'mod_booking')
 );
 
-if ($CFG->version >= 2022041900) {
-    $PAGE->activityheader->disable();
-}
-
 $output = $PAGE->get_renderer('booking');
 
 echo $output->header();
 echo $output->heading(get_string('bookingrules', 'mod_booking'));
 
-// Check if PRO version is active.
-if (wb_payment::pro_version_is_activated()) {
-    $borules = new booking_rules();
-    echo $borules->return_rendered_list_of_saved_rules();
+echo get_string('linktoshowroom:bookingrules', 'mod_booking');
 
-} else {
+// Check if PRO version is active. In free version, up to three rules can be edited for whole plugin, but none for coursemodule.
+if (wb_payment::pro_version_is_activated()) {
+    echo booking_rules::get_rendered_list_of_saved_rules($contextid);
+} else if (!empty($cmid)) {
     echo html_writer::div(get_string('infotext:prolicensenecessary', 'mod_booking'), 'alert alert-warning');
+} else {
+    $rules = booking_rules::get_list_of_saved_rules($contextid);
+    if (isset($rules) && count($rules) < 3) {
+        echo booking_rules::get_rendered_list_of_saved_rules($contextid);
+    } else if (isset($rules) && count($rules) >= 3) {
+        echo booking_rules::get_rendered_list_of_saved_rules($contextid, false);
+    }
 }
 
 $PAGE->requires->js_call_amd(
@@ -76,4 +114,3 @@ $PAGE->requires->js_call_amd(
 );
 
 echo $output->footer();
-

@@ -22,6 +22,7 @@
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+use mod_booking\singleton_service;
 
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->libdir . '/formslib.php');
@@ -29,8 +30,20 @@ require_once($CFG->libdir . '/formslib.php');
 // No guest autologin.
 require_login(0, false);
 
+/**
+ * Class to handling Teachers form
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 class mod_booking_teachers_form extends moodleform {
 
+    /**
+     *
+     * {@inheritDoc}
+     * @see moodleform::definition()
+     */
     public function definition() {
         global $DB, $CFG;
 
@@ -46,7 +59,7 @@ class mod_booking_teachers_form extends moodleform {
                 }
 
                 $userdata = $DB->get_record('booking_teachers',
-                        array('optionid' => $this->_customdata['option']->id, 'userid' => $user->id));
+                        ['optionid' => $this->_customdata['option']->id, 'userid' => $user->id]);
 
                 $checkmark = "&nbsp;";
                 if ($userdata->completed == '1') {
@@ -55,7 +68,7 @@ class mod_booking_teachers_form extends moodleform {
                 $mform->addElement('advcheckbox', "user[{$user->id}]",
                         $checkmark . " <a href=\"$CFG->wwwroot/user/view.php?id=$user->id\">" .
                                  fullname($user) . "</a>", '',
-                                array('group' => $this->_customdata['option']->id + 1));
+                                ['group' => $this->_customdata['option']->id + 1]);
             }
 
             $this->add_checkbox_controller($this->_customdata['option']->id + 1);
@@ -63,11 +76,11 @@ class mod_booking_teachers_form extends moodleform {
             $mform->addElement('html', '<p>' . get_string('nousers', 'booking') . '</p>');
         }
 
-        $buttonarray = array();
+        $buttonarray = [];
         if (has_capability('mod/booking:updatebooking', context_module::instance($cm->id))) {
-            $bookingoption = new \mod_booking\booking_option($cm->id, $this->_customdata['option']->id, array(), 0, 0, false);
+            $bookingoption = singleton_service::get_instance_of_booking_option($cm->id, $this->_customdata['option']->id);
 
-            $course = $DB->get_record('course', array('id' => $bookingoption->booking->settings->course));
+            $course = $DB->get_record('course', ['id' => $bookingoption->booking->settings->course]);
             $completion = new \completion_info($course);
             if ($completion->is_enabled($cm) == COMPLETION_TRACKING_AUTOMATIC
                 && $bookingoption->booking->settings->enablecompletion > 0) {
@@ -83,7 +96,7 @@ class mod_booking_teachers_form extends moodleform {
 
         $buttonarray[] = &$mform->createElement('cancel');
 
-        $mform->addGroup($buttonarray, 'buttonar', '', array(' '), false);
+        $mform->addGroup($buttonarray, 'buttonar', '', [' '], false);
 
         // Hidden elements.
         $mform->addElement('hidden', 'id', $this->_customdata['id']);

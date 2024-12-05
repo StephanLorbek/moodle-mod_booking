@@ -13,8 +13,24 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Handle specific booking db methods.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace mod_booking\utils;
 
+/**
+ * Class to handle specific booking db methods.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 class db {
 
     /**
@@ -56,47 +72,47 @@ class db {
             AND cm.visible = 1
         ORDER BY c.id ASC, b.id ASC , bo.id ASC";
 
-        return $DB->get_records_sql($sql, array($USER->id), 0, 0);
+        return $DB->get_records_sql($sql, [$USER->id], 0, 0);
     }
 
     /**
      * Get all badges for course.
      *
-     * @param $courseid
+     * @param ?int $courseid
      *
      * @return array
      */
-    public function getbadges($courseid = null) {
+    public function getbadges(?int $courseid = null) {
         global $DB;
 
         if (!empty($courseid)) {
             $sql = 'SELECT b.id, b.name FROM {badge} b WHERE ' .
                 'b.status = 1 OR b.status = 3 ORDER BY b.name ASC';
-            $params = array();
+            $params = [];
             $params['courseid'] = $courseid;
 
             return $DB->get_records_sql_menu($sql, $params);
         } else {
-            return array();
+            return [];
         }
     }
 
     /**
      * Get all users that have or not have cerain activity completed.
      *
-     * @param $cmid
-     * @param $optionid
-     * @param $completed If true, return users who completed activity.
+     * @param int $cmid
+     * @param int $optionid
+     * @param bool $completed If true, return users who completed activity.
      *
      * @return array of matching users.
      */
     public function getusersactivity($cmid = null, $optionid = null, $completed = false) {
         global $DB;
 
-        $ud = array();
-        $oud = array();
-        $users = $DB->get_records('course_modules_completion', array('coursemoduleid' => $cmid));
-        $ousers = $DB->get_records('booking_answers', array('optionid' => $optionid));
+        $ud = [];
+        $oud = [];
+        $users = $DB->get_records('course_modules_completion', ['coursemoduleid' => $cmid]);
+        $ousers = $DB->get_records('booking_answers', ['optionid' => $optionid]);
 
         foreach ($users as $u) {
             $ud[] = $u->userid;
@@ -116,18 +132,18 @@ class db {
     /**
      * Get all users that have certain badge.
      *
-     * @param $badgeid
-     * @param $optionid
+     * @param int $badgeid
+     * @param ?int $optionid
      *
      * @return array of matching users.
      */
-    public function getusersbadges($badgeid = null, $optionid = null) {
+    public function getusersbadges($badgeid = null, ?int $optionid = null) {
         global $DB;
 
-        $ud = array();
-        $oud = array();
-        $users = $DB->get_records('badge_issued', array('badgeid' => $badgeid));
-        $ousers = $DB->get_records('booking_answers', array('optionid' => $optionid));
+        $ud = [];
+        $oud = [];
+        $users = $DB->get_records('badge_issued', ['badgeid' => $badgeid]);
+        $ousers = $DB->get_records('booking_answers', ['optionid' => $optionid]);
 
         foreach ($users as $u) {
             $ud[] = $u->userid;

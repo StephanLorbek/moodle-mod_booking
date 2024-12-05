@@ -23,161 +23,63 @@ Feature: In a booking create multi session options
     And the following "activities" exist:
       | activity | course | name       | intro                  | bookingmanager | eventtype | Default view for booking options | Activate e-mails (confirmations, notifications and more) | Booking option name  |
       | booking  | C1     | My booking | My booking description | teacher1       | Webinar   | All bookings                     | Yes                                                      | New option - Webinar |
-    And I create booking option "New option - Webinar" in "My booking"
+    And I create booking option "New option - Multisession" in "My booking"
+    And I change viewport size to "1366x10000"
 
   @javascript
-  Scenario: Create session with multiple dates
-    Given I log in as "teacher1"
-    When I am on "Course 1" course homepage
-    And I follow "My booking"
-    And I should see "New option"
-    And I click on "Book now" "text" in the "#allbookingoptionstable_r1" "css_element"
-    And I wait "5" seconds
-    And I click on "Settings" "icon" in the "#allbookingoptionstable_r1" "css_element"
-    And I click on "Duplicate this booking option" "link" in the "#allbookingoptionstable_r1" "css_element"
+  Scenario: Boooking option: add multiple session dates by editing booking option
+    Given I am on the "My booking" Activity page logged in as admin
+    And I click on "Settings" "icon" in the ".allbookingoptionstable_r1" "css_element"
+    And I click on "Edit booking option" "link" in the ".allbookingoptionstable_r1" "css_element"
+    And I follow "Dates"
+    And I press "Add date"
+    And I wait "1" seconds
+    And I should see "## today ##%Y##" in the "#booking_optiondate_1" "css_element"
+    And I should see "## today ##%B##" in the "#booking_optiondate_1" "css_element"
+    ## Disabled due to GitHub's issue. Uncomment for local tests
+    ## And I should see "## today ##%d##" in the "#booking_optiondate_1" "css_element"
+    ## Add 1st date
     And I set the following fields to these values:
-      | Booking option name | Test option - Copy - Multisession |
-    And I press "Save and go back"
-    And I click on "Settings" "icon" in the "#allbookingoptionstable_r2" "css_element"
-    And I click on "Duplicate this booking option" "link" in the "#allbookingoptionstable_r2" "css_element"
+      | coursestarttime_1[day]    | 15                 |
+      | coursestarttime_1[month]  | March              |
+      | coursestarttime_1[year]   | ## + 1 year ##%Y## |
+      | coursestarttime_1[hour]   | 13                 |
+      | coursestarttime_1[minute] | 00                 |
+      | courseendtime_1[day]      | 15                 |
+      | courseendtime_1[month]    | March              |
+      | courseendtime_1[year]     | ## + 1 year ##%Y## |
+      | courseendtime_1[hour]     | 16                 |
+      | courseendtime_1[minute]   | 00                 |
+    And I press "applydate_1"
+    ## Add 2nd date
+    And I press "Add date"
+    And I wait "1" seconds
     And I set the following fields to these values:
-      | Booking option name | Test option - Copy2 |
-    And I press "Save and go back"
-    And I click on "Settings" "icon" in the "#allbookingoptionstable_r3" "css_element"
-    And I click on "Manage option dates" "link" in the "#allbookingoptionstable_r3" "css_element"
-    And I set the following fields to these values:
-      | coursestarttime[day]    | 15                    |
-      | coursestarttime[month]  | March                 |
-      | coursestarttime[year]   | ## + 1 year ##%Y##  |
-      | coursestarttime[hour]   | 13                    |
-      | coursestarttime[minute] | 00                    |
-      | endhour                 | 20                    |
-      | endminute               | 00                    |
+      | coursestarttime_2[day]    | 20                 |
+      | coursestarttime_2[month]  | June               |
+      | coursestarttime_2[year]   | ## + 2 year ##%Y## |
+      | coursestarttime_2[hour]   | 14                 |
+      | coursestarttime_2[minute] | 00                 |
+      | courseendtime_2[day]      | 20                 |
+      | courseendtime_2[month]    | June               |
+      | courseendtime_2[year]     | ## + 2 year ##%Y## |
+      | courseendtime_2[hour]     | 17                 |
+      | courseendtime_2[minute]   | 00                 |
+    And I press "applydate_2"
+    ## Verify on booking oprion form page
+    And I wait "1" seconds
+    Then I should see "15 March" in the "#booking_optiondate_1" "css_element"
+    And I should see "## + 1 year ##%Y##" in the "#booking_optiondate_1" "css_element"
+    And I should see "1:00 PM - 4:00 PM" in the "#booking_optiondate_1" "css_element"
+    And I should see "20 June" in the "#booking_optiondate_2" "css_element"
+    And I should see "## + 2 year ##%Y##" in the "#booking_optiondate_2" "css_element"
+    And I should see "2:00 PM - 5:00 PM" in the "#booking_optiondate_2" "css_element"
     And I press "Save"
-    And I set the following fields to these values:
-      | coursestarttime[day]    | 20  |
-      | coursestarttime[month]  | June |
-      | coursestarttime[year]   | ## + 2 year ##%Y##  |
-      | coursestarttime[hour]   | 14                    |
-      | coursestarttime[minute] | 00                    |
-      | endhour                 | 21                    |
-      | endminute               | 00                    |
-    And I press "Save"
-    And I set the following fields to these values:
-      | coursestarttime[day]    | 25  |
-      | coursestarttime[month]  | September |
-      | coursestarttime[year]   | ## + 3 year ##%Y##  |
-      | coursestarttime[hour]   | 15                    |
-      | coursestarttime[minute] | 00                    |
-      | endhour                 | 22                    |
-      | endminute               | 00                    |
-    And I press "Save"
-    Then I should see "15 March" in the "#region-main table.generaltable" "css_element"
-    And I should see "## + 1 year ##%Y##" in the "#region-main table.generaltable" "css_element"
-    And I should see "1:00 PM to 8:00 PM" in the "#region-main table.generaltable" "css_element"
-    And I should see "20 June" in the "#region-main table.generaltable" "css_element"
-    And I should see "## + 2 year ##%Y##" in the "#region-main table.generaltable" "css_element"
-    And I should see "2:00 PM to 9:00 PM" in the "#region-main table.generaltable" "css_element"
-    And I should see "25 September" in the "#region-main table.generaltable" "css_element"
-    And I should see "## + 3 year ##%Y##" in the "#region-main table.generaltable" "css_element"
-    And I should see "3:00 PM to 10:00 PM" in the "#region-main table.generaltable" "css_element"
-    And I press "Back"
-    Then I should see "Test option - Copy - Multisession" in the "#allbookingoptionstable_r3" "css_element"
-    And I wait "5" seconds
-    And I click on "Show dates" "link" in the "#allbookingoptionstable_r3" "css_element"
-    And I wait "1" seconds
-    Then I should see "15 March" in the "#allbookingoptionstable_r3" "css_element"
-    And I should see "## + 1 year ##%Y##" in the "#allbookingoptionstable_r3" "css_element"
-    And I should see "1:00 PM - 8:00 PM" in the "#allbookingoptionstable_r3" "css_element"
-    And I should see "20 June" in the "#allbookingoptionstable_r3" "css_element"
-    And I should see "## + 2 year ##%Y##" in the "#allbookingoptionstable_r3" "css_element"
-    And I should see "2:00 PM - 9:00 PM" in the "#allbookingoptionstable_r3" "css_element"
-    And I should see "25 September" in the "#allbookingoptionstable_r3" "css_element"
-    And I should see "## + 3 year ##%Y##" in the "#allbookingoptionstable_r3" "css_element"
-    And I should see "3:00 PM - 10:00 PM" in the "#allbookingoptionstable_r3" "css_element"
-
-  @javascript
-  Scenario: Send reminder mail to participant
-    Given I log in as "teacher1"
-    When I am on "Course 1" course homepage
-    And I follow "My booking"
-    And I click on "Settings" "icon" in the "#allbookingoptionstable_r1" "css_element"
-    And I click on "Edit booking option" "link" in the "#allbookingoptionstable_r1" "css_element"
-    And I wait "1" seconds
-    And I press "Teachers"
-    And I wait "1" seconds
-    And I set the field "Assign teachers:" to "Teacher 1 (teacher1@example.com)"
-    And I press "Save and go back"
-    And I follow "My booking"
-    And I click on "Settings" "icon" in the "#allbookingoptionstable_r1" "css_element"
-    And I click on "Book other users" "link" in the "#allbookingoptionstable_r1" "css_element"
-    And I click on "Student 1 (student1@example.com)" "text"
-    And I click on "Student 2 (student2@example.com)" "text"
-    And I click on "Add" "button"
-    And I follow "<< Back to responses"
-    And I click on "selectall" "checkbox"
-    And I click on "Send reminder e-mail" "button"
-    And I click on "selectall" "checkbox"
-    And I click on "Send custom message" "button"
-    And I set the following fields to these values:
-      | Subject | Behat test                                                     |
-      | Message | Dear, Firstly, I would like to thank you for booking my Course |
-    And I press "Save changes"
-    And I should see "Your message has been sent."
-    # And I run all adhoc tasks
-    # And I open the link "webserver/_/mail"
-    # Then I should see "Teacher 1 (via Acceptance test site)"
-    # And I should see "Behat test"
-
-  @javascript
-  Scenario: Student books an option
-    ## URL webserver/_/mail is inacessible
-    ## When I log in as "student1"
-    ## And I open the link "webserver/_/mail"
-    ## And I follow "Delete all messages"
-    ## And I press "Delete all messages"
-    ## And I open the link "webserver"
-    ## Then I am on "Course 1" course homepage
-    Given I log in as "student1"
-    When I am on "Course 1" course homepage
-    And I follow "My booking"
-    And I should see "New option - Webinar"
-    And I click on "Book now" "text" in the "#allbookingoptionstable_r1" "css_element"
-    And I should see "Do you really want to book?" in the "#allbookingoptionstable_r1" "css_element"
-    And I click on "Do you really want to book?" "text" in the "#allbookingoptionstable_r1" "css_element"
-    And I should see "Booked" in the "#allbookingoptionstable_r1" "css_element"
-    ## Next step(s) cause faiure (coding error, email was not sent):
-    ## Then I trigger cron
-    ## And I wait "1" seconds
-    ## And I run all adhoc tasks
-    ## URL webserver/_/mail is inacessible
-    ## And I open the link "webserver/_/mail"
-    ## Then I should see "Teacher 1 (via Acceptance test site)"
-    ## And I should see "Booking confirmation for New option - Webinar"
-
-  @javascript
-  Scenario: Teacher sends mails to students
-    Given I log in as "teacher1"
-    When I am on "Course 1" course homepage
-    Then I follow "My booking"
-    And I follow "My booking"
-    And I click on "Settings" "icon" in the "#allbookingoptionstable_r1" "css_element"
-    And I click on "Book other users" "link" in the "#allbookingoptionstable_r1" "css_element"
-    And I click on "Student 1 (student1@example.com)" "text"
-    And I click on "Student 2 (student2@example.com)" "text"
-    And I click on "Add" "button"
-    And I follow "<< Back to responses"
-    And I click on "selectall" "checkbox"
-    And I click on "Send reminder e-mail" "button"
-    And I should see "Notification e-mail has been sent!"
-    ## Next step(s) cause faiure (coding error, email was not sent):
-    ## Then I trigger cron
-    ## And I wait "1" seconds
-    ## And I run all adhoc tasks
-
-  @javascript
-  Scenario: Run cron
-    Given I log in as "admin1"
-    Then I trigger cron
-    And I wait "1" seconds
-    And I run all adhoc tasks
+    ## Verify on booking oprions list page
+    And I wait until the page is ready
+    Then I should see "15 March" in the ".allbookingoptionstable_r1" "css_element"
+    And I should see "## + 1 year ##%Y##" in the ".allbookingoptionstable_r1" "css_element"
+    And I should see "1:00 PM - 4:00 PM" in the ".allbookingoptionstable_r1" "css_element"
+    And I should see "20 June" in the ".allbookingoptionstable_r1" "css_element"
+    And I should see "## + 2 year ##%Y##" in the ".allbookingoptionstable_r1" "css_element"
+    And I should see "2:00 PM - 5:00 PM" in the ".allbookingoptionstable_r1" "css_element"

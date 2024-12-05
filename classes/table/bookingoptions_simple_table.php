@@ -14,6 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * Search results for managers are shown in a table (student search results use the template searchresults_student).
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace mod_booking\table;
 
 defined('MOODLE_INTERNAL') || die();
@@ -27,18 +35,25 @@ use local_wunderbyte_table\wunderbyte_table;
 use mod_booking\booking_utils;
 use mod_booking\booking_option;
 use mod_booking\output\col_text_with_description;
+use mod_booking\singleton_service;
 use moodle_exception;
 use moodle_url;
 
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * Search results for managers are shown in a table (student search results use the template searchresults_student).
+ * Class to handle search results for managers.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class bookingoptions_simple_table extends wunderbyte_table {
 
     /**
      * Cache an array of teacher names to save DB queries.
+     *
+     * @var array
      */
     private $teachers = [];
 
@@ -59,7 +74,7 @@ class bookingoptions_simple_table extends wunderbyte_table {
             // Use the renderer to output this column.
             $data = new col_text_with_description($values->optionid, $values->text,
                 $values->titleprefix ?? '', $values->description);
-            $output = $PAGE->get_renderer('mod_booking');
+            $output = singleton_service::get_renderer('mod_booking');
             return $output->render_col_text_with_description($data);
 
         } else {
@@ -82,7 +97,7 @@ class bookingoptions_simple_table extends wunderbyte_table {
         // Use the renderer to output this column.
         // For bookingoptions_simple_table we DO NOT collapse dates but show all of them within the table.
         $data = new \mod_booking\output\col_coursestarttime($values->optionid, null, $values->cmid, false);
-        $output = $PAGE->get_renderer('mod_booking');
+        $output = singleton_service::get_renderer('mod_booking');
         return $output->render_col_coursestarttime($data);
     }
 
@@ -103,12 +118,18 @@ class bookingoptions_simple_table extends wunderbyte_table {
 
         if ($DB->get_records('booking_answers', ['optionid' => $values->optionid])) {
             // Add a link to redirect to the booking option.
-            $link = new moodle_url($CFG->wwwroot . '/mod/booking/report.php', array(
+            $link = new moodle_url($CFG->wwwroot . '/mod/booking/report.php', [
                 'id' => $values->cmid,
-                'optionid' => $values->optionid
-            ));
+                'optionid' => $values->optionid,
+            ]);
             // Use html_entity_decode to convert "&amp;" to a simple "&" character.
-            $link = html_entity_decode($link->out());
+            if ($CFG->version >= 2023042400) {
+                // Moodle 4.2 needs second param.
+                $link = html_entity_decode($link->out(), ENT_QUOTES);
+            } else {
+                // Moodle 4.1 and older.
+                $link = html_entity_decode($link->out(), ENT_COMPAT);
+            }
 
             if (!$this->is_downloading()) {
                 // Only format as a button if it's not an export.
@@ -154,13 +175,19 @@ class bookingoptions_simple_table extends wunderbyte_table {
         global $CFG;
 
         // Add a link to redirect to the booking option.
-        $link = new moodle_url($CFG->wwwroot . '/mod/booking/view.php', array(
-            'id' => $values->cmid,
+        $link = new moodle_url($CFG->wwwroot . '/mod/booking/view.php', [
+            'id' => booking_option::get_cmid_from_optionid($values->optionid),
             'optionid' => $values->optionid,
-            'whichview' => 'showonlyone'
-        ));
+            'whichview' => 'showonlyone',
+        ]);
         // Use html_entity_decode to convert "&amp;" to a simple "&" character.
-        $link = html_entity_decode($link->out());
+        if ($CFG->version >= 2023042400) {
+            // Moodle 4.2 needs second param.
+            $link = html_entity_decode($link->out(), ENT_QUOTES);
+        } else {
+            // Moodle 4.1 and older.
+            $link = html_entity_decode($link->out(), ENT_COMPAT);
+        }
 
         if (!$this->is_downloading()) {
             // Only format as a button if it's not an export.

@@ -23,6 +23,7 @@ use mod_booking\booking_option_settings;
 use mod_booking\form\subbooking\additionalperson_form;
 use mod_booking\output\subbooking_additionalperson_output;
 use mod_booking\price;
+use mod_booking\singleton_service;
 use mod_booking\subbookings\booking_subbooking;
 use MoodleQuickForm;
 use stdClass;
@@ -40,7 +41,6 @@ require_once($CFG->dirroot . '/mod/booking/lib.php');
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class subbooking_additionalperson implements booking_subbooking {
-
     /** @var int $id Id of the configured subbooking */
     public $id = 0;
 
@@ -49,6 +49,9 @@ class subbooking_additionalperson implements booking_subbooking {
 
     /** @var string $type type of subbooking as the name of this class */
     public $type = 'subbooking_additionalperson';
+
+    /** @var string $typestringid localized string to display type of subbooking at various froms */
+    public $typestringid = 'subbookingadditionalperson';
 
     /** @var string $name given name to this configured subbooking*/
     public $name = '';
@@ -100,50 +103,57 @@ class subbooking_additionalperson implements booking_subbooking {
      */
     public function add_subbooking_to_mform(MoodleQuickForm &$mform, array &$formdata) {
 
-        $mform->addElement('static', 'subbooking_additionalperson_desc', '',
-            get_string('subbooking_additionalperson_desc', 'mod_booking'));
+        $mform->addElement(
+            'static',
+            'subbooking_additionalperson_desc',
+            '',
+            get_string('subbookingadditionalperson_desc', 'mod_booking')
+        );
 
         // Add a description with the potential inclusion of files.
 
         $cmid = $formdata['cmid'];
         $context = context_module::instance($cmid);
 
-        $textfieldoptions = array(
+        $textfieldoptions = [
             'trusttext' => true,
             'subdirs' => true,
             'maxfiles' => 1,
-            'context' => $context);
+            'context' => $context,
+        ];
 
         $mform->addElement(
             'editor',
             'subbooking_additionalperson_description_editor',
-            get_string('subbooking_additionalperson_description', 'mod_booking'),
+            get_string('subbookingadditionalpersondescription', 'mod_booking'),
             null,
-            $textfieldoptions);
-        $mform->setType('subbooking_additionalperson_description', PARAM_RAW);
+            $textfieldoptions
+        );
+        $mform->setType('subbooking_additionalperson_description_editor', PARAM_RAW);
 
         // For price & entities wie need the id of this subbooking.
         $sboid = $formdata['id'] ?? 0;
 
         // Add price.
         $price = new price('subbooking', $sboid);
-        $price->add_price_to_mform($mform);
-
+        $price->add_price_to_mform($mform, true); // Second param true means no price formula here!
     }
 
     /**
      * Get the name of the subbooking.
-     * @param boolean $localized
+     * @param bool $localized
      * @return string
      */
-    public function get_name_of_subbooking($localized = true):string {
-        return $localized ? get_string($this->type, 'mod_booking') : $this->type;
+    public function get_name_of_subbooking($localized = true): string {
+        return $localized ? get_string($this->typestringid, 'mod_booking') : $this->type;
     }
 
     /**
      * Save the JSON for timeslot subbooking defined in form.
+     *
      * The role has to determine the handler for condtion and action and get the right json object.
-     * @param stdClass &$data form data reference
+     *
+     * @param stdClass $data form data reference
      */
     public function save_subbooking(stdClass &$data) {
         global $DB, $USER;
@@ -162,6 +172,7 @@ class subbooking_additionalperson implements booking_subbooking {
         $jsonobject->data = new stdClass();
         $jsonobject->data->description = ''; // Updated later.
         $jsonobject->data->descriptionformat = 0; // Updated later.
+        $jsonobject->data->useprice = $data->useprice ?? 0;
         $record->name = $data->subbooking_name;
         $record->type = $this->type;
         $record->optionid = $data->optionid;
@@ -170,7 +181,7 @@ class subbooking_additionalperson implements booking_subbooking {
         $record->usermodified = $USER->id;
 
         // If we can update, we add the id here.
-        if ($data->id) {
+        if (!empty($data->id)) {
             $this->id = $data->id;
             $record->id = $data->id;
             $DB->update_record('booking_subbooking_options', $record);
@@ -181,11 +192,12 @@ class subbooking_additionalperson implements booking_subbooking {
         }
 
         $context = context_module::instance($data->cmid);
-        $textfieldoptions = array(
+        $textfieldoptions = [
             'trusttext' => true,
             'subdirs' => true,
             'maxfiles' => 1,
-            'context' => $context);
+            'context' => $context,
+        ];
 
         $data = file_postupdate_standard_editor(
             $data,
@@ -194,7 +206,8 @@ class subbooking_additionalperson implements booking_subbooking {
             $context,
             'mod_booking',
             'subbookings',
-            $this->id);
+            $this->id
+        );
 
         $record->id = $this->id;
 
@@ -210,12 +223,12 @@ class subbooking_additionalperson implements booking_subbooking {
         // Add price.
         $price = new price('subbooking', $this->id);
         $price->save_from_form($data);
-
     }
 
     /**
      * Sets the subbooking defaults when loading the form.
-     * @param stdClass &$data reference to the default values
+     *
+     * @param stdClass $data reference to the default values
      * @param stdClass $record a record from booking_subbookings
      */
     public function set_defaults(stdClass &$data, stdClass $record) {
@@ -231,11 +244,12 @@ class subbooking_additionalperson implements booking_subbooking {
         $data->subbooking_additionalperson_descriptionformat = $jsondata->descriptionformat;
 
         $context = context_module::instance($data->cmid);
-        $textfieldoptions = array(
+        $textfieldoptions = [
             'trusttext' => true,
             'subdirs' => true,
             'maxfiles' => 1,
-            'context' => $context);
+            'context' => $context,
+        ];
 
         $data = file_prepare_standard_editor(
             $data,
@@ -244,23 +258,28 @@ class subbooking_additionalperson implements booking_subbooking {
             $context,
             'mod_booking',
             'subbookings',
-            $record->id);
+            $record->id
+        );
+
+        // Add price.
+        $price = new price('subbooking', $record->id);
+        $price->set_data($data);
+
+        $data->useprice = $jsonobject->data->useprice ?? 0;
     }
 
     /**
      * Return interface for this subbooking type as an array of data & template.
      *
      * @param booking_option_settings $settings
+     * @param int $userid
      * @return array
      */
-    public function return_interface(booking_option_settings $settings):array {
+    public function return_interface(booking_option_settings $settings, int $userid): array {
 
-        // The interface of the timeslot booking should merge when there are multiple slot bookings.
+        // The interfaces should merge when there are multiple "additional person" subbookings.
         // Therefore, we need to first find out how many of these are present.
-
-        // The interface of the timeslot booking should merge when there are multiple slot bookings.
-        // Therefore, we need to first find out how many of these are present.
-        $arrayofmine = array_filter($settings->subbookings, function($x) {
+        $arrayofmine = array_filter($settings->subbookings, function ($x) {
             return $x->type == $this->type;
         });
 
@@ -270,12 +289,8 @@ class subbooking_additionalperson implements booking_subbooking {
             return [];
         }
 
-        // Now that we render the last item, we need to render all of them, plus the container.
-        // We need to create the json for rendering.
-
-        $data = new subbooking_additionalperson_output($settings);
-
-        return [$data, 'mod_booking/subbooking/additionalperson'];
+        $dataobj = new subbooking_additionalperson_output($settings, $userid);
+        return [['data' => $dataobj->data], 'mod_booking/subbooking/additionalperson'];
     }
 
     /**
@@ -284,7 +299,7 @@ class subbooking_additionalperson implements booking_subbooking {
      * @param object $user
      * @return array
      */
-    public function return_price($user):array {
+    public function return_price($user): array {
 
         // First, we get the price object.
         $price = price::get_price('subbooking', $this->id, $user);
@@ -296,14 +311,14 @@ class subbooking_additionalperson implements booking_subbooking {
         // When choosing the elements from the subbookings, we store our current state in the cache.
         $data = additionalperson_form::get_data_from_cache($this->id);
 
-        // If we find the multiplyer her, we set it, else it's 1.
-        $multiplyer = (int)$data->subbooking_addpersons ?? 1;
+        // If we find the multiplier here, we set it, else it's 1.
+        $multiplier = (int)$data->subbooking_addpersons ?? 1;
 
-        if (empty($multiplyer)) {
-            $multiplyer = 1;
+        if (empty($multiplier)) {
+            $multiplier = 1;
         }
 
-        $price['price'] = $multiplyer * $price['price'];
+        $price['price'] = $multiplier * $price['price'];
 
         return $price;
     }
@@ -315,7 +330,7 @@ class subbooking_additionalperson implements booking_subbooking {
      * @param object $user
      * @return string
      */
-    public function return_description($user):string {
+    public function return_description($user): string {
 
         global $OUTPUT, $PAGE;
 
@@ -329,7 +344,7 @@ class subbooking_additionalperson implements booking_subbooking {
         $bp = $data->subbooking_addpersons ?? 1;
 
         $templatedata = [
-            'introduction' => get_string('subbooking_bookedpersons', 'mod_booking'),
+            'introduction' => get_string('subbookingbookedpersons', 'mod_booking'),
             'personbooked' => [],
         ];
 
@@ -359,11 +374,11 @@ class subbooking_additionalperson implements booking_subbooking {
      * ... where itemids would be slotids.
      * But normally the itemid here is the same as the subboooking it.
      *
-     * @param integer $itemid
-     * @param object $user
+     * @param int $itemid
+     * @param int $userid
      * @return array
      */
-    public function return_subbooking_information(int $itemid = 0, $user = null):array {
+    public function return_subbooking_information(int $itemid = 0, int $userid = 0): array {
 
         return [];
     }
@@ -372,14 +387,88 @@ class subbooking_additionalperson implements booking_subbooking {
      * When a subbooking is booked, we might need some supplementary values saved.
      * Evey subbooking type can decide what to store in the answer json.
      *
-     * @param integer $itemid
-     * @param object $user
+     * @param int $itemid
+     * @param ?object $user
      * @return string
      */
-    public function return_answer_json(int $itemid, $user = null):string {
+    public function return_answer_json(int $itemid, ?object $user = null): string {
 
         // When choosing the elements from the subbookings, we store our current state in the cache.
         $data = additionalperson_form::get_data_from_cache($this->id);
         return json_encode($data);
+    }
+
+    /**
+     * Is blocking. This depends on the settings and user.
+     *
+     * @param booking_option_settings $settings
+     * @param int $userid
+     *
+     * @return bool
+     *
+     */
+    public function is_blocking(booking_option_settings $settings, int $userid = 0): bool {
+        // We never show the subbooking when we are only in waitforconfirmation.
+        if (!empty($settings->waitforconfirmation)) {
+            $ba = singleton_service::get_instance_of_booking_answers($settings);
+
+            // When the user is neither on waitinglist, nor on reserved, don't show subbookings.
+            if (
+                !(
+                    ($ba->usersonwaitinglist[$userid] ?? false)
+                    || ($ba->usersreserved[$userid] ?? false)
+                )
+            ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * After booking action.
+     *
+     * @param booking_option_settings $settings
+     * @param int $userid
+     * @param int $recordid
+     *
+     * @return bool
+     *
+     */
+    public function after_booking_action(booking_option_settings $settings, int $userid = 0, int $recordid = 0): bool {
+
+        global $DB;
+
+        // Get number of places.
+        // Get answer object of option.
+        // Update places to the right number..
+
+        $answer = additionalperson_form::get_data_from_cache($this->id);
+        $numberofpersons = $answer->subbooking_addpersons ?? 0;
+
+        if ($numberofpersons == 0) {
+            return false;
+        }
+
+        $id = $DB->get_field(
+            'booking_answers',
+            'id',
+            [
+                'optionid' => $settings->id,
+                'waitinglist' => MOD_BOOKING_STATUSPARAM_BOOKED,
+            ]
+        );
+
+        // For now, it's enough to set the number of persons here.
+        // If ever there will be a second way to increase this number, we first need to fetch.
+        $data = [
+            'id' => $id,
+            'places' => $numberofpersons + 1,
+        ];
+
+        $DB->update_record('booking_answers', $data);
+
+        return true;
     }
 }

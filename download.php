@@ -16,6 +16,8 @@
 
 /**
  * Baseurl of wunderbyte_table will always point to this file for download.
+ *
+ * @package mod_booking
  * @copyright 2023 Wunderbyte Gmbh <info@wunderbyte.at>
  * @license https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -31,20 +33,21 @@ require_login();
 
 require_once($CFG->dirroot . '/local/wunderbyte_table/classes/wunderbyte_table.php');
 
+$cmid = required_param('cmid', PARAM_INT);
 $download = optional_param('download', '', PARAM_ALPHA);
 $encodedtable = optional_param('encodedtable', '', PARAM_RAW);
 
 $context = context_system::instance();
 $PAGE->set_context($context);
-$PAGE->set_url('/download.php');
+$downloadurl = new moodle_url('/mod/booking/download.php', ['cmid' => $cmid]);
+$PAGE->set_url($downloadurl);
 
-$lib = wunderbyte_table::decode_table_settings($encodedtable);
+$booking = singleton_service::get_instance_of_booking_by_cmid($cmid);
 
-$table = new $lib['classname']($lib['uniqueid']);
+/** @var bookingoptions_wbtable $table */
+$table = wunderbyte_table::instantiate_from_tablecache_hash($encodedtable);
 
-$table->update_from_json($lib);
-
-$bookingsettings = singleton_service::get_instance_of_booking_settings_by_cmid($table->cmid);
+$bookingsettings = singleton_service::get_instance_of_booking_settings_by_cmid($cmid);
 $instancename = $bookingsettings->name;
 
 // Replace special characters to prevent errors.
@@ -56,8 +59,6 @@ $instancename = format_string($instancename);
 // File name and sheet name.
 $fileandsheetname = "download_of_" . $instancename;
 $table->is_downloading($download, $fileandsheetname, $fileandsheetname);
-
-$booking = $table->booking;
 
 $table->headers = [];
 $table->columns = [];

@@ -48,7 +48,7 @@ class report_viewed extends \core\event\base {
      * @return string
      */
     public static function get_name() {
-        return get_string('eventreport_viewed', 'mod_booking');
+        return get_string('eventreportviewed', 'mod_booking');
     }
 
     /**
@@ -67,17 +67,6 @@ class report_viewed extends \core\event\base {
      * @return \moodle_url
      */
     public function get_url() {
-        return new \moodle_url('/mod/booking/report.php', array('id' => $this->contextinstanceid, 'optionid' => $this->objectid));
-    }
-
-    /**
-     * replace add_to_log() statement.
-     *
-     * @return array of parameters to be passed to legacy add_to_log() function.
-     */
-    protected function get_legacy_logdata() {
-        $url = new \moodle_url('/mod/booking/report.php',
-                array('id' => $this->contextinstanceid, 'optionid' => $this->objectid));
-        return array($this->courseid, 'choose', 'report', $url->out(), $this->objectid, $this->contextinstanceid);
+        return new \moodle_url('/mod/booking/report.php', ['id' => $this->contextinstanceid, 'optionid' => $this->objectid]);
     }
 }

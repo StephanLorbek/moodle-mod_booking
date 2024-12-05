@@ -56,33 +56,32 @@ class signin_downloadform implements renderable, templatable {
     public $baseurl = '';
 
     /** @var array $sessions */
-    public $sessions = array();
+    public $sessions = [];
 
-    /** @var boolean $teachersexist */
+    /** @var bool $teachersexist */
     public $teachersexist = false;
 
     /**
      * Constructor
      *
-     * @param int $coursemoduleid
      * @param \mod_booking\booking_option $bookingoption
      * @param \moodle_url $url baseurl
      */
     public function __construct(\mod_booking\booking_option $bookingoption, $url) {
-        $this->titleinstanceoption = format_string($bookingoption->booking->settings->name) . ' - ' .
-            format_string($bookingoption->settings->text);
-        $this->titleoption = format_string($bookingoption->settings->text);
+        $this->titleinstanceoption = format_string($bookingoption->booking->settings->name) . ': ' .
+            format_string($bookingoption->settings->get_title_with_prefix());
+        $this->titleoption = format_string($bookingoption->settings->get_title_with_prefix());
         $this->instanceoption = format_string($bookingoption->booking->settings->name);
-        $this->sessions = array();
+        $this->sessions = [];
 
         if (!empty($bookingoption->settings->sessions)) {
             foreach ($bookingoption->settings->sessions as $session) {
-                $this->sessions[] = array(
+                $this->sessions[] = [
                     'sessiondateonly' => userdate($session->coursestarttime, get_string('strftimedate', 'langconfig')),
                     'coursestarttime' => userdate($session->coursestarttime, get_string('strftimedatetime', 'langconfig')),
                     'courseendtime' => userdate($session->courseendtime, get_string('strftimedatetime', 'langconfig')),
-                    'id' => $session->id
-                );
+                    'id' => $session->id,
+                ];
             }
         }
         $this->baseurl = $url->get_path();
@@ -93,6 +92,14 @@ class signin_downloadform implements renderable, templatable {
         }
     }
 
+    /**
+     * Export for template
+     *
+     * @param renderer_base $output
+     *
+     * @return mixed
+     *
+     */
     public function export_for_template(renderer_base $output) {
         return $this;
     }

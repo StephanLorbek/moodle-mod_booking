@@ -13,8 +13,16 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
-use mod_booking\booking;
-use mod_booking\booking_option;
+
+/**
+ * Handling move option pahe
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+use mod_booking\singleton_service;
 
 require_once(__DIR__ . '/../../config.php');
 require_once("lib.php");
@@ -25,15 +33,15 @@ $optionid = required_param('optionid', PARAM_INT);
 $targetcmid = optional_param('movetocmid', 0, PARAM_INT);
 require_sesskey();
 
-$url = new moodle_url('/mod/booking/moveoption.php', array('id' => $id, 'optionid' => $optionid));
-$returnurl = new moodle_url('/mod/booking/view.php', array('id' => $id));
+$url = new moodle_url('/mod/booking/moveoption.php', ['id' => $id, 'optionid' => $optionid]);
+$returnurl = new moodle_url('/mod/booking/view.php', ['id' => $id]);
 $PAGE->set_url($url);
 
 list($course, $cm) = get_course_and_cm_from_cmid($id, 'booking');
 
 require_course_login($course, false, $cm);
 
-if (!$booking = new booking($cm->id)) {
+if (!$booking = singleton_service::get_instance_of_booking_by_cmid($cm->id)) {
     throw new invalid_parameter_exception("Course module id is incorrect");
 }
 
@@ -46,7 +54,7 @@ $PAGE->set_title(format_string($booking->settings->name));
 $PAGE->set_heading(get_string('moveoptionto', 'mod_booking'));
 echo $OUTPUT->header();
 if ($targetcmid > 0) {
-    $option = new booking_option($cm->id, $optionid, array(), 0, 0, false);
+    $option = singleton_service::get_instance_of_booking_option($cm->id, $optionid);
     $errorstring = $option->move_option_otherbookinginstance($targetcmid);
     $button = new single_button($returnurl, get_string('continue'), 'get');
     $renderer = $PAGE->get_renderer('core');

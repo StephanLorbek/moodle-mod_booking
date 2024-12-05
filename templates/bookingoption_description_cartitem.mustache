@@ -15,7 +15,7 @@
     along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 }}
 {{!
-    @template mod_booking/bookingoption_description
+    @template mod_booking/bookingoption_description_cartitem
 
     Classes required for JS:
     * none
@@ -25,7 +25,6 @@
 
     Example context (json):
     {
-        "titleprefix" : "titleprefix",
         "description": "Booking option description",
         "location" : "location",
         "institution" : "institution",
@@ -40,14 +39,8 @@
         "currency": "EUR",
         "pricecategoryname": "Price",
         "teachers": [
-            {
-                "userid": "1006",
-                "firstname": "Maxima",
-                "lastname": "Yoga",
-                "email": "maxima.yoga@mailnotexisting.net",
-                "institution": "Institution",
-                "teacherurl": "url"
-            }
+            "Maxima Yoga",
+            "Teacher 1"
         ],
         "dates": [
             {
@@ -66,8 +59,8 @@
 
 {{#dayofweektime}}<div class="bo_dayofweektime">{{#str}}dayofweektime, mod_booking{{/str}}: {{.}}</div>{{/dayofweektime}}
 
-<a class="collapse-description" data-toggle="collapse" href="#collapsedescription_{{modalcounter}}" role="button" aria-expanded="false" aria-controls="collapseExample">
-    {{#str}} showdescription, local_shopping_cart {{/str}}
+<a class="collapse-description" data-toggle="collapse" href="#collapsedescription_{{modalcounter}}" role="button" aria-expanded="false" aria-controls="collapsedescription_{{modalcounter}}">
+    {{#str}} showdescription, mod_booking {{/str}}
 </a>
 
 <div class="collapse" id="collapsedescription_{{modalcounter}}">
@@ -90,13 +83,11 @@
                             <b>{{{datestring}}}</b>
                         </div>
                         <div {{^customfields}}style="display:none"{{/customfields}}>
-                            <ul>
-                                {{#customfields}}
-                                    <li>
-                                        {{name}}{{{value}}}
-                                    </li>
-                                {{/customfields}}
-                            </ul>
+                            {{#customfields}}
+                                <div>
+                                    {{name}}{{{value}}}
+                                </div>
+                            {{/customfields}}
                         </div>
                     </div>
                 {{/dates}}

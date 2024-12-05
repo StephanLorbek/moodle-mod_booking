@@ -30,16 +30,28 @@ require_once($CFG->libdir . '/formslib.php');
 
 use mod_booking\utils\db;
 
+/**
+ * Class to handle the confirm activity form
+ *
+ * @package mod_booking
+ * @copyright 2021 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 class confirmactivity extends \moodleform {
+
+    /**
+     * Definitiion.
+     * @return void
+     */
     public function definition() {
         global $CFG, $DB;
 
         $mform = $this->_form; // Don't forget the underscore!
 
-        $radioarray = array();
-        $radioarray[] = $mform->createElement('radio', 'whichtype', '', get_string('badges'), 1, array());
-        $radioarray[] = $mform->createElement('radio', 'whichtype', '', get_string('activity'), 0, array());
-        $mform->addGroup($radioarray, 'radioar', get_string('confirmactivtyfrom', 'booking'), array(' '), false);
+        $radioarray = [];
+        $radioarray[] = $mform->createElement('radio', 'whichtype', '', get_string('badges'), 1, []);
+        $radioarray[] = $mform->createElement('radio', 'whichtype', '', get_string('activity'), 0, []);
+        $mform->addGroup($radioarray, 'radioar', get_string('confirmactivtyfrom', 'booking'), [' '], false);
 
         $dbutill = new db();
         $badges = $dbutill->getbadges($this->_customdata['course']->id);
@@ -47,7 +59,7 @@ class confirmactivity extends \moodleform {
         $mform->addElement('select', 'certid', get_string('badges'), $badges);
         $mform->disabledIf('certid', 'whichtype', 'eq', 0);
 
-        $activity = array();
+        $activity = [];
         $info = get_fast_modinfo($this->_customdata['course']);
         foreach ($info->get_cms() as $cminfo) {
             if ($cminfo->uservisible == 1 && $cminfo->get_course_module_record()->completion > 0) {
@@ -58,13 +70,21 @@ class confirmactivity extends \moodleform {
         $mform->addElement('select', 'activity', get_string('activity'), $activity);
         $mform->disabledIf('activity', 'whichtype', 'eq', 1);
 
-        $buttonarray = array();
+        $buttonarray = [];
         $buttonarray[] = $mform->createElement('submit', 'submitbutton', get_string('confirmusers', 'booking'));
         $buttonarray[] = $mform->createElement('cancel');
         $mform->addGroup($buttonarray, 'buttonar', '', ' ', false);
     }
 
-    // Custom validation should be added here.
+    /**
+     * Custom validation should be added here.
+     *
+     * @param array $data
+     * @param array $files
+     *
+     * @return array
+     *
+     */
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
 

@@ -41,31 +41,30 @@ use stdClass;
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 interface booking_subbooking {
-
     /**
      * Adds the form elements for this subbooking to the provided mform.
      * @param MoodleQuickForm $mform the mform where the subbooking should be added
-     * @param formdata
+     * @param array $formdata
      * @return void
      */
     public function add_subbooking_to_mform(MoodleQuickForm &$mform, array &$formdata);
 
     /**
      * Gets the human-readable name of a subbooking (localized).
-     * @param boolean $localized
+     * @param bool $localized
      * @return string the name of the subbooking
      */
-    public function get_name_of_subbooking($localized = true):string;
+    public function get_name_of_subbooking($localized = true): string;
 
     /**
      * Gets the JSON for the subbookings to be stored in DB.
-     * @param stdClass &$data form data reference
+     * @param stdClass $data form data reference
      */
     public function save_subbooking(stdClass &$data);
 
     /**
      * Sets the subbooking defaults when loading the form.
-     * @param stdClass &$data reference to the default values
+     * @param stdClass $data reference to the default values
      * @param stdClass $record a record from booking_subbookings
      */
     public function set_defaults(stdClass &$data, stdClass $record);
@@ -85,18 +84,18 @@ interface booking_subbooking {
     /**
      * Return interface for this subbooking type as an array of data & template.
      * @param booking_option_settings $settings
+     * @param int $userid
      * @return array
      */
-    public function return_interface(booking_option_settings $settings):array;
+    public function return_interface(booking_option_settings $settings, int $userid): array;
 
     /**
      * The price might be altered, eg. when more than one item is selected.
      *
      * @param object $user
-     * @param object $user
      * @return array
      */
-    public function return_price($user):array;
+    public function return_price($user): array;
 
     /**
      * Function to return all relevant information of this subbooking as array.
@@ -105,19 +104,42 @@ interface booking_subbooking {
      * ... where itemids would be slotids.
      * But normally the itemid here is the same as the subboooking it.
      *
-     * @param integer $itemid
+     * @param int $itemid
+     * @param int $userid
      *
      * @return array
      */
-    public function return_subbooking_information(int $itemid = 0, $user = null):array;
-
+    public function return_subbooking_information(int $itemid = 0, int $userid = 0): array;
     /**
      * When a subbooking is booked, we might need some supplementary values saved.
      * Evey subbooking type can decide what to store in the answer json.
      *
-     * @param integer $itemid
-     * @param object $user
+     * @param int $itemid
+     * @param ?object $user
      * @return string
      */
-    public function return_answer_json(int $itemid, $user = null):string;
+    public function return_answer_json(int $itemid, ?object $user = null): string;
+
+    /**
+     * Is blocking. This depends on the settings and user.
+     *
+     * @param booking_option_settings $settings
+     * @param int $userid
+     *
+     * @return bool
+     *
+     */
+    public function is_blocking(booking_option_settings $settings, int $userid = 0): bool;
+
+    /**
+     * After booking action.
+     *
+     * @param booking_option_settings $settings
+     * @param int $userid
+     * @param int $recordid
+     *
+     * @return bool
+     *
+     */
+    public function after_booking_action(booking_option_settings $settings, int $userid = 0, int $recordid = 0): bool;
 }

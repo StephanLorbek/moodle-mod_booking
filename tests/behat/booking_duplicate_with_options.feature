@@ -1,4 +1,4 @@
-@mod @mod_booking @booking_multisessions
+@mod @mod_booking @booking_multisessions @booking_duplicate_option
 Feature: In a booking create booking option with multiple custom options
   As an admin
   I need to duplicate booking option with multiple custom options
@@ -23,119 +23,163 @@ Feature: In a booking create booking option with multiple custom options
     And the following "activities" exist:
       | activity | course | name       | intro                  | bookingmanager | eventtype | Default view for booking options | Activate e-mails (confirmations, notifications and more) | Booking option name  |
       | booking  | C1     | My booking | My booking description | teacher1       | Webinar   | All bookings                     | Yes                                                      | New option - Webinar |
+    And the following "custom field categories" exist:
+      | name     | component   | area    | itemid |
+      | SportArt | mod_booking | booking | 0      |
+    And the following "custom fields" exist:
+      | name   | category | type | shortname | configdata[defaultvalue] |
+      | Sport1 | SportArt | text | spt1      | defsport1                |
+    And the following "mod_booking > pricecategories" exist:
+      | ordernum | identifier    | name          | defaultvalue | disabled | pricecatsortorder |
+      | 1        | default       | Base Price    | 70           | 0        | 1                 |
+      | 2        | specialprice  | Special Price | 60           | 0        | 2                 |
     And I create booking option "New option - duplication source" in "My booking"
+    And I change viewport size to "1366x10000"
 
   @javascript
-  Scenario: Duplicate session with multiple options
+  Scenario: Duplication of booking option with teacher
+    ## To cover an issue reported in #551
+    Given I am on the "My booking" Activity page logged in as teacher1
+    And I click on "Settings" "icon" in the ".allbookingoptionstable_r1" "css_element"
+    And I click on "Edit booking option" "link" in the ".allbookingoptionstable_r1" "css_element"
+    And I wait until the page is ready
+    And I set the following fields to these values:
+      | Booking option name                   | Duplication source |
+    And I set the field "Assign teachers:" to "Teacher 1"
+    And I press "Save"
+    And I click on "Settings" "icon" in the ".allbookingoptionstable_r1" "css_element"
+    And I click on "Duplicate this booking option" "link" in the ".allbookingoptionstable_r1" "css_element"
+    And I set the following fields to these values:
+      | Booking option name | Test option - Copy1 |
+    And I should see "Teacher 1" in the "//div[contains(@id, 'id_bookingoptionteachers_')]//span[contains(@class, 'user-suggestion')]" "xpath_element"
+    When I press "Save"
+    Then I should see "Test option - Copy1" in the ".allbookingoptionstable_r2" "css_element"
+
+  @javascript
+  Scenario: Duplication of booking option with course
     Given I log in as "admin"
-    And I visit "/admin/category.php?category=modbookingfolder"
-    And I follow "Booking: Price categories"
+    And I set the following administration settings values:
+      | Duplicate Moodle course | 1 |
+    And I am on the "My booking" Activity page
+    And I click on "Settings" "icon" in the ".allbookingoptionstable_r1" "css_element"
+    And I click on "Edit booking option" "link" in the ".allbookingoptionstable_r1" "css_element"
+    And I wait until the page is ready
     And I set the following fields to these values:
-      | Default price category name | Base Price |
-      | Default price value         | 70         |
-      | Sort order (number)         | 1          |
-    And I set the field "Add price category" to "checked"
-    And I set the following fields to these values:
-      | pricecategoryidentifier2 | specialprice  |
-      | pricecategoryname2       | Special Price |
-      | defaultvalue2            | 60            |
-      | pricecatsortorder2       | 2             |
-    And I press "Save changes"
-    Then I should see "Price categories were saved"
+      | Booking option name                   | Duplication source      |
+      | chooseorcreatecourse                  | Connected Moodle course |
+      ##| Connected Moodle course               | Course 1           |
+    ## TODO: duplication of field names "Connected Moodle course" must be eliminated to use more efficient command (above)
+    And I click on "Course 1" "text" in the "//div[contains(@id, 'fitem_id_courseid_')]//div[contains(@id, 'form_autocomplete_selection-')]" "xpath_element"
     And I wait "1" seconds
-    Given I am on "Course 1" course homepage
-    Then I should see "My booking"
+    And I open the autocomplete suggestions list in the "//div[contains(@id, 'id_coursesheader_')]//div[contains(@id, 'fitem_id_courseid_')]" "xpath_element"
+    And I wait "1" seconds
+    And I should see "Course 1 (ID:" in the "//div[contains(@id, 'fitem_id_courseid_')]//ul[contains(@class, 'form-autocomplete-suggestions')]" "xpath_element"
+    And I click on "Course 1" "text" in the "//div[contains(@id, 'fitem_id_courseid_')]//ul[contains(@class, 'form-autocomplete-suggestions')]" "xpath_element"
+    And I press "Save"
+    And I click on "Settings" "icon" in the ".allbookingoptionstable_r1" "css_element"
+    When I click on "Duplicate this booking option" "link" in the ".allbookingoptionstable_r1" "css_element"
+    And I set the following fields to these values:
+      | Booking option name | Duplication - Copy1 |
+    And I press "Save"
+    And I trigger cron
+    And I am on "Course 1 (copy)" course homepage
     And I follow "My booking"
-    And I should see "New option - duplication source"
-    And I click on "Settings" "icon" in the "#allbookingoptionstable_r1" "css_element"
-    And I click on "Edit booking option" "link" in the "#allbookingoptionstable_r1" "css_element"
+    Then I should see "Duplication - Copy1"
+
+  @javascript
+  Scenario: Duplicate booking option with multiple customized settings
+    Given I am on the "My booking" Activity page logged in as teacher1
+    And I click on "Settings" "icon" in the ".allbookingoptionstable_r1" "css_element"
+    And I click on "Edit booking option" "link" in the ".allbookingoptionstable_r1" "css_element"
+    And I wait until the page is ready
     And I set the following fields to these values:
-      | Prefix              | MIB                   |
-      | Booking option name | Topic: Statistics     |
-      | Description         | Class om Statistics   |
-      | Internal annotation | Statistics for medics |
-      | Add new location    | MI Departmant         |
-      | Add new institution | Morphology Institute  |
-      | Address             | Ternopil              |
-    And I set the field "Limit the number of participants" to "checked"
+      | Prefix                                | MIB                   |
+      | Booking option name                   | Topic: Statistics     |
+      | Description                           | Class om Statistics   |
+      | Internal annotation                   | Statistics for medics |
+      | Max. number of participants           | 10                    |
+      | Max. number of places on waiting list | 5                     |
+      | Min. number of participants           | 3                     |
+      | Teachers poll url                     | https://google.com    |
+      | chooseorcreatecourse                  | Connected Moodle course |
+    And I wait "1" seconds
+    And I set the field with xpath "//*[contains(@id, 'fitem_id_courseid_')]//*[contains(@id, 'form_autocomplete_input-')]" to "Course 1"
+    And I set the field "Assign teachers:" to "Teacher 1"
+    And I press "Add date"
+    And I wait "1" seconds
     And I set the following fields to these values:
-      | Max. number of participants           | 10    |
-      | Max. number of places on waiting list | 5     |
-      | Min. number of participants           | 3     |
-      | duration[number]                      | 2     |
-      | duration[timeunit]                    | hours |
-    And I click on "Start and end time of course are known" "checkbox"
-    And I set the following fields to these values:
-      | coursestarttime[day]    | ##tomorrow##%d##      |
-      | coursestarttime[month]  | ##tomorrow##%B##      |
-      | coursestarttime[year]   | ##tomorrow##%Y##      |
-      | coursestarttime[hour]   | 09                    |
-      | coursestarttime[minute] | 00                    |
-      | courseendtime[day]      | ##tomorrow##%d##      |
-      | courseendtime[month]    | ## + 2 month ## %B ## |
-      | courseendtime[year]     | ##tomorrow##%Y##      |
-      | courseendtime[hour]     | 18                    |
-      | courseendtime[minute]   | 00                    |
-      | Teachers poll url       | https://google.com    |
-      | reoccurringdatestring   | FR, 13:30 - 14:30     |
+      | coursestarttime_1[day]    | 1                  |
+      | coursestarttime_1[month]  | March              |
+      | coursestarttime_1[year]   | ##today##%Y##      |
+      | coursestarttime_1[hour]   | 09                 |
+      | coursestarttime_1[minute] | 00                 |
+      | courseendtime_1[day]      | 2                  |
+      | courseendtime_1[month]    | March              |
+      | courseendtime_1[year]     | ## + 1 year ##%Y## |
+      | courseendtime_1[hour]     | 18                 |
+      | courseendtime_1[minute]   | 00                 |
+      | daystonotify_1 | 1 |
     And I set the field "Add to course calendar" to "Add to calendar (visible only to course participants)"
-    And I set the field "Assign teachers:" to "Teacher 1 (teacher1@example.com)"
+    ##And I set the field "Institution" to "TNMU" ## Error Other element would receive the click:
     And I wait "1" seconds
     And I set the field "Only book with price" to "checked"
     And I set the following fields to these values:
-      | pricegroup_default[bookingprice_default]           | 75                            |
-      | pricegroup_specialprice[bookingprice_specialprice] | 65                            |
+      ##| pricegroup_default[bookingprice_default]           | 75                            |
+      ##| pricegroup_specialprice[bookingprice_specialprice] | 65                            |
+      | bookingprice_default                               | 75                            |
+      | bookingprice_specialprice                          | 65                            |
+      | customfield_spt1                                   | tenis                         |
       | Notification message                               | Advanced notification message |
       | Before booked                                      | Before booked message         |
       | After booked                                       | After booked message          |
-    And I press "Save and go back"
-    ## Create 1st copy
-    And I click on "Settings" "icon" in the "#allbookingoptionstable_r1" "css_element"
-    And I click on "Duplicate this booking option" "link" in the "#allbookingoptionstable_r1" "css_element"
+    And I press "Save"
+    ## And I wait until the page is ready - does not work, force timeout
+    And I wait "1" seconds
+    ## Create a copy
+    And I click on "Settings" "icon" in the ".allbookingoptionstable_r1" "css_element"
+    When I click on "Duplicate this booking option" "link" in the ".allbookingoptionstable_r1" "css_element"
+    And I wait until the page is ready
     And I set the field "Booking option name" to "Topic: Statistics - Copy 1"
-    And I press "Save and go back"
-    ## Create 2nd copy
-    And I click on "Settings" "icon" in the "#allbookingoptionstable_r1" "css_element"
-    And I click on "Duplicate this booking option" "link" in the "#allbookingoptionstable_r1" "css_element"
-    And I set the field "Booking option name" to "Topic: Statistics - Copy 2"
-    And I press "Save and go back"
-    ## Verify name for 1st copy
-    And I should see "Topic: Statistics - Copy 1"
-    And I should see "Topic: Statistics - Copy 2"
-    ## Verify options for 2nd copy
-    And I click on "Settings" "icon" in the "#allbookingoptionstable_r3" "css_element"
-    And I click on "Edit booking option" "link" in the "#allbookingoptionstable_r3" "css_element"
+    And I press "Save"
+    ## And I wait until the page is ready - does not work, force timeout
+    And I wait "1" seconds
+    ## Verify copy and its options
+    Then I should see "Topic: Statistics - Copy 1" in the ".allbookingoptionstable_r2" "css_element"
+    And I click on "Settings" "icon" in the ".allbookingoptionstable_r2" "css_element"
+    And I click on "Edit booking option" "link" in the ".allbookingoptionstable_r2" "css_element"
+    And I wait until the page is ready
+    And I expand all fieldsets
+    And I should see "Course 1" in the "//div[contains(@id, 'fitem_id_courseid_')]//span[contains(@class, 'course-suggestion')]" "xpath_element"
+    And I should see "Teacher 1" in the "//div[contains(@id, 'id_bookingoptionteachers_')]//span[contains(@class, 'user-suggestion')]" "xpath_element"
+    And I should see "March" in the "//span[@aria-controls='booking_optiondate_collapse1']" "xpath_element"
     And the following fields match these values:
-      | Prefix              | MIB                        |
-      | Booking option name | Topic: Statistics - Copy 2 |
-      | Description         | Class om Statistics        |
-      | Internal annotation | Statistics for medics      |
-      | Address             | Ternopil                   |
-    And I should see "MI Departmant" in the "#fitem_id_location" "css_element"
-    And I should see "Morphology Institute" in the "#fitem_id_institution" "css_element"
-    And I should see "Teacher 1 (teacher1@example.com)" in the "#id_bookingoptionteacherscontainer" "css_element"
-    And the field "Limit the number of participants" matches value "checked"
-    And the field "Start and end time of course are known" matches value "checked"
-    And the following fields match these values:
+      | Prefix                                | MIB                           |
+      | Booking option name                   | Topic: Statistics - Copy 1    |
+      | Description                           | Class om Statistics           |
+      ##| Institution                           | TNMU                          |
+      | Internal annotation                   | Statistics for medics         |
       | Max. number of participants           | 10                            |
       | Max. number of places on waiting list | 5                             |
       | Min. number of participants           | 3                             |
-      | duration[number]                      | 2                             |
-      | duration[timeunit]                    | hours                         |
-      | coursestarttime[day]                  | ##tomorrow##%d##              |
-      | coursestarttime[month]                | ##tomorrow##%B##              |
-      | coursestarttime[year]                 | ##tomorrow##%Y##              |
-      | coursestarttime[hour]                 | 09                            |
-      | coursestarttime[minute]               | 00                            |
-      | courseendtime[day]                    | ##tomorrow##%d##              |
-      | courseendtime[month]                  | ## + 2 month ## %B ##         |
-      | courseendtime[year]                   | ##tomorrow##%Y##              |
-      | courseendtime[hour]                   | 18                            |
-      | courseendtime[minute]                 | 00                            |
       | Teachers poll url                     | https://google.com            |
-      | reoccurringdatestring                 | FR, 13:30 - 14:30             |
-      | pricegroup_default[bookingprice_default]           | 75                            |
-      | pricegroup_specialprice[bookingprice_specialprice] | 65                            |
+      | chooseorcreatecourse                  | Connected Moodle course       |
+      ##| pricegroup_default[bookingprice_default]           | 75               |
+      ##| pricegroup_specialprice[bookingprice_specialprice] | 65               |
+      | bookingprice_default                  | 75                            |
+      | bookingprice_specialprice             | 65                            |
+      | customfield_spt1                      | tenis                         |
       | Notification message                  | Advanced notification message |
       | Before booked                         | Before booked message         |
       | After booked                          | After booked message          |
+      | coursestarttime_1[day]                | 1                             |
+      | coursestarttime_1[month]              | March                         |
+      | coursestarttime_1[year]               | ##today##%Y##                 |
+      | coursestarttime_1[hour]               | 09                            |
+      | coursestarttime_1[minute]             | 00                            |
+      ##| courseendtime_1[day]                 | ##today##%d##                 |
+      | courseendtime_1[day]                  | 2                             |
+      | courseendtime_1[month]                | March                         |
+      | courseendtime_1[year]                 | ## + 1 year ## %Y ##          |
+      | courseendtime_1[hour]                 | 18                            |
+      | courseendtime_1[minute]               | 00                            |
+      | daystonotify_1                        | 1                             |

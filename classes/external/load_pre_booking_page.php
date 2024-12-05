@@ -54,16 +54,16 @@ class load_pre_booking_page extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'optionid' => new external_value(PARAM_INT, 'option id'),
-            'userid' => new external_value(PARAM_INT, 'user id', VALUE_OPTIONAL, 0),
+            'userid' => new external_value(PARAM_INT, 'user id', VALUE_DEFAULT, 0),
             'pagenumber' => new external_value(PARAM_INT, 'number of page we want to load'),
-            ]
-        );
+            ]);
     }
 
     /**
      * Webservice for load_pre_booking_page.
      *
      * @param int $optionid
+     * @param int $userid
      * @param int $pagenumber
      *
      * @return array
@@ -72,10 +72,13 @@ class load_pre_booking_page extends external_api {
         global $USER;
 
         $params = self::validate_parameters(
-                self::execute_parameters(),
-                array('optionid' => $optionid,
+            self::execute_parameters(),
+            [
+                'optionid' => $optionid,
                 'userid' => $userid,
-                'pagenumber' => $pagenumber));
+                'pagenumber' => $pagenumber,
+            ]
+        );
 
         $result = bo_info::load_pre_booking_page($params['optionid'], $params['pagenumber'], $params['userid']);
 
@@ -85,24 +88,27 @@ class load_pre_booking_page extends external_api {
     /**
      * Returns description of method result value.
      *
-     * @return external_single_structure
+     * @return external_function_parameters
      */
-    public static function execute_returns(): external_single_structure {
+    public static function execute_returns(): external_function_parameters {
         return new external_function_parameters(
-                [
-                    'json' => new external_value(
-                        PARAM_RAW,
-                        'The data object in jsonformat to render the content.',
-                        VALUE_REQUIRED),
-                    'template' => new external_value(
-                        PARAM_RAW,
-                        'The name of the template which is needed to render the content.',
-                        VALUE_REQUIRED),
-                    'buttontype' => new external_value(
-                        PARAM_INT,
-                        '0 for no button, 1 for continue, 2 for last button.',
-                        VALUE_REQUIRED),
-                ]
+            [
+                'json' => new external_value(
+                    PARAM_RAW,
+                    'The data object in jsonformat to render the content.',
+                    VALUE_REQUIRED
+                ),
+                'template' => new external_value(
+                    PARAM_RAW,
+                    'The name of the template which is needed to render the content.',
+                    VALUE_REQUIRED
+                ),
+                'buttontype' => new external_value(
+                    PARAM_INT,
+                    '0 for no button, 1 for continue, 2 for last button.',
+                    VALUE_REQUIRED
+                ),
+            ]
         );
     }
 }

@@ -26,6 +26,7 @@
 
 namespace mod_booking\bo_availability;
 
+use mod_booking\booking_option;
 use mod_booking\booking_option_settings;
 use MoodleQuickForm;
 use stdClass;
@@ -75,7 +76,7 @@ interface bo_condition {
      * @param bool $not Set true if we are inverting the condition
      * @return bool True if available
      */
-    public function is_available(booking_option_settings $settings, $userid, $not);
+    public function is_available(booking_option_settings $settings, int $userid, bool $not): bool;
 
 
     /**
@@ -87,11 +88,11 @@ interface bo_condition {
      * ... as they are not necessary, but return true when the booking policy is not yet answered.
      * Hard block is only checked if is_available already returns false.
      *
-     * @param booking_option_settings $booking_option_settings
-     * @param integer $userid
-     * @return boolean
+     * @param booking_option_settings $settings
+     * @param int $userid
+     * @return bool
      */
-    public function hard_block(booking_option_settings $settings, $userid):bool;
+    public function hard_block(booking_option_settings $settings, $userid): bool;
 
 
     /**
@@ -104,12 +105,10 @@ interface bo_condition {
      * (when displaying all information about the activity) and 'student' cases
      * (when displaying only conditions they don't meet).
      *
-     * @param bool $full Set true if this is the 'full information' view
      * @param booking_option_settings $settings Item we're checking
-     * @param int $userid userid of the user we want the description for.
+     * @param int $userid userid of the user we want the description for
+     * @param bool $full Set true if this is the 'full information' view
      * @param bool $not Set true if we are inverting the condition
-     * @return string Information string (for admin) about all restrictions on
-     *   this item
      */
     public function get_description(booking_option_settings $settings, $userid, $full, $not);
 
@@ -125,12 +124,12 @@ interface bo_condition {
 
     /**
      * Render the supplementary page before the booking process.
-     * This
      *
      * @param int $optionid
+     * @param int $userid optional user id
      * @return array
      */
-    public function render_page(int $optionid);
+    public function render_page(int $optionid, int $userid = 0);
 
     /**
      * Some conditions (like price & bookit) provide a button.
@@ -142,8 +141,25 @@ interface bo_condition {
      * @param int $userid
      * @param bool $full
      * @param bool $not
+     * @param bool $fullwidth
      * @return array
      */
     public function render_button(booking_option_settings $settings,
         int $userid = 0, bool $full = false, bool $not = false, bool $fullwidth = true): array;
+
+    /**
+     * Each function can return additional sql.
+     * This will be used if the conditions should not only block booking...
+     * ... but actually hide the conditons alltogether.
+     *
+     * @return array
+     */
+    public function return_sql(): array;
+
+    /**
+     * Returns the id of the condition.
+     *
+     * @return int
+     */
+    public function get_id(): int;
 }

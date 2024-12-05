@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * Import options or just add new users from CSV
  *
@@ -20,6 +21,7 @@
  * @copyright 2019 Andraž Prinčič www.princic.net
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/booking/locallib.php');
 
@@ -28,8 +30,8 @@ use mod_booking\form\customreporttemplatesadd_form;
 $id = required_param('id', PARAM_INT); // Course Module ID.
 $templateid = optional_param('templateid', '', PARAM_INT);
 
-$url = new moodle_url('/mod/booking/customreporttemplatesadd.php', array('id' => $id, 'templateid' => $templateid));
-$urlredirect = new moodle_url('/mod/booking/customreporttemplates.php', array('id' => $id));
+$url = new moodle_url('/mod/booking/customreporttemplatesadd.php', ['id' => $id, 'templateid' => $templateid]);
+$urlredirect = new moodle_url('/mod/booking/customreporttemplates.php', ['id' => $id]);
 $PAGE->set_url($url);
 
 list($course, $cm) = get_course_and_cm_from_cmid($id);
@@ -70,7 +72,7 @@ if ($mform->is_cancelled()) {
     $entryid = $DB->insert_record("booking_customreport", $template);
 
     file_save_draft_area_files($data->templatefile, $coursecontext->id, 'mod_booking', 'templatefile',
-        $entryid, array('subdirs' => 0, 'maxbytes' => $CFG->maxbytes, 'maxfiles' => 1));
+        $entryid, ['subdirs' => 0, 'maxbytes' => $CFG->maxbytes, 'maxfiles' => 1]);
 
     redirect($urlredirect, get_string('templatesuccessfullysaved', 'booking'), 5);
 } else {

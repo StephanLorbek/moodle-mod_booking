@@ -73,14 +73,15 @@ class semester {
      * If we have passed on the cached object, we use this one.
      *
      * @param int $id the semester id
+     * @param ?stdClass $dbrecord
      * @return stdClass|null
      */
-    private function set_values(int $id, stdClass $dbrecord = null) {
+    private function set_values(int $id, ?stdClass $dbrecord = null) {
         global $DB;
 
         // If we don't get the cached object, we have to fetch it here.
         if (empty($dbrecord)) {
-            $dbrecord = $DB->get_record("booking_semesters", array("id" => $id));
+            $dbrecord = $DB->get_record("booking_semesters", ["id" => $id]);
         }
 
         if ($dbrecord) {
@@ -107,7 +108,7 @@ class semester {
     public static function get_semesters_id_name_array(): array {
         global $DB;
 
-        $semestersarray = [];
+        $semestersarray = [0 => get_string('nosemester', 'mod_booking')];
 
         $data = $DB->get_records('booking_semesters');
 

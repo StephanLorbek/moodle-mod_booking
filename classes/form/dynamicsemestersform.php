@@ -30,6 +30,7 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once("$CFG->libdir/formslib.php");
 
+use cache_helper;
 use coding_exception;
 use context;
 use context_system;
@@ -79,7 +80,7 @@ class dynamicsemestersform extends dynamic_form {
 
             foreach ($semesterdata->semesteridentifier as $idx => $semesteridentifier) {
 
-                $semester = new stdClass;
+                $semester = new stdClass();
                 $semester->identifier = trim($semesteridentifier);
                 $semester->name = trim($semesterdata->semestername[$idx]);
                 $semester->startdate = $semesterdata->semesterstart[$idx];
@@ -102,7 +103,7 @@ class dynamicsemestersform extends dynamic_form {
     public function set_data_for_dynamic_submission(): void {
         global $DB;
 
-        $data = new stdClass;
+        $data = new stdClass();
 
         if ($existingsemesters = $DB->get_records_sql("SELECT * FROM {booking_semesters} ORDER BY startdate DESC")) {
             $data->semesters = count($existingsemesters);
@@ -168,6 +169,9 @@ class dynamicsemestersform extends dynamic_form {
             }
         }
 
+        // So we can be sure that we use the right dates.
+        cache_helper::purge_by_event('setbacksemesters');
+
         return $this->get_data();
     }
 
@@ -187,7 +191,7 @@ class dynamicsemestersform extends dynamic_form {
         $repeateloptions = [];
 
         $semesterlabel = html_writer::tag('b', get_string('semester', 'booking') . ' {no}',
-            array('class' => 'semesterlabel'));
+            ['class' => 'semesterlabel']);
         $repeatedsemesters[] = $mform->createElement('static', 'semesterlabel', $semesterlabel);
 
         $repeatedsemesters[] = $mform->createElement('text', 'semesteridentifier', get_string('semesteridentifier', 'booking'));

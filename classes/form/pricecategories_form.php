@@ -53,7 +53,7 @@ class pricecategories_form extends moodleform {
         // Default price always needs to be there, ordernum has to be 1 and identifier has to be 'default'.
         $defaultprice = $DB->get_record_sql("SELECT * FROM {booking_pricecategories} WHERE identifier = 'default'");
         if (empty($defaultprice)) {
-            $defaultprice = new stdClass;
+            $defaultprice = new stdClass();
             $defaultprice->ordernum = 1;
             $defaultprice->identifier = 'default';
             $defaultprice->name = get_string('price', 'booking');
@@ -134,7 +134,7 @@ class pricecategories_form extends moodleform {
         }
 
         // Now, if there are less than the maximum number of price category fields allow adding additional ones.
-        if (count($pricecategories) < MAX_PRICE_CATEGORIES) {
+        if (count($pricecategories) < MOD_BOOKING_MAX_PRICE_CATEGORIES) {
             // Between one to nine price categories are supported.
             $start = count($pricecategories) + 2;
             $this->addpricecategories($mform, $start);
@@ -147,14 +147,19 @@ class pricecategories_form extends moodleform {
     /**
      * Helper function to create form elements for adding price categories.
      * Start with 2, because 1 is the default price.
+     *
+     * @param mixed $mform
      * @param int $counter if there already are existing price categories start with the succeeding number
+     *
+     * @return void
+     *
      */
     public function addpricecategories($mform, $counter = 2) {
 
         // Add checkbox to add first price category.
         $mform->addElement('checkbox', 'addpricecategory' . $counter, get_string('addpricecategory', 'booking'));
 
-        while ($counter <= MAX_PRICE_CATEGORIES) {
+        while ($counter <= MOD_BOOKING_MAX_PRICE_CATEGORIES) {
             // New elements have a default pricecategoryid of 0.
             $mform->addElement('hidden', 'pricecategoryid' . $counter, 0);
             $mform->setType('pricecategoryid' . $counter, PARAM_INT);
@@ -196,7 +201,7 @@ class pricecategories_form extends moodleform {
             $mform->hideIf('disablepricecategory' . $counter, 'addpricecategory' . $counter, 'notchecked');
 
             // Show checkbox to add a price category.
-            if ($counter < MAX_PRICE_CATEGORIES) {
+            if ($counter < MOD_BOOKING_MAX_PRICE_CATEGORIES) {
                 $mform->addElement('checkbox', 'addpricecategory' . ($counter + 1), get_string('addpricecategory', 'booking'));
                 $mform->hideIf('addpricecategory' . ($counter + 1), 'addpricecategory' . $counter, 'notchecked');
             }
@@ -205,19 +210,21 @@ class pricecategories_form extends moodleform {
     }
 
     /**
-     * Validate price categories.
+     * Form validation.
      *
-     * {@inheritdoc}
-     * @see moodleform::validation()
+     * @param array $data
+     * @param array $files
+     * @return array
+     *
      */
     public function validation($data, $files) {
 
         global $DB;
 
-        $errors = array();
+        $errors = [];
 
         // Validate price categories.
-        for ($i = 1; $i <= MAX_PRICE_CATEGORIES; $i++) {
+        for ($i = 1; $i <= MOD_BOOKING_MAX_PRICE_CATEGORIES; $i++) {
 
             if (isset($data['pricecategoryidentifier' . $i])) {
                 $pricecategoryidentifierx = $data['pricecategoryidentifier' . $i];

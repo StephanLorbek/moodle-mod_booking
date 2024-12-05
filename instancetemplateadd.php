@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * Import options or just add new users from CSV
  *
@@ -20,19 +21,20 @@
  * @copyright 2014 Andraž Prinčič www.princic.net
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/booking/locallib.php');
 require_once($CFG->libdir . '/formslib.php');
 
-use \mod_booking\utils\wb_payment;
-use \core\output\notification;
+use mod_booking\utils\wb_payment;
+use core\output\notification;
 
 global $DB, $PAGE, $OUTPUT;
 
 $id = required_param('id', PARAM_INT); // Course Module ID.
 
-$url = new moodle_url('/mod/booking/instancetemplateadd.php', array('id' => $id));
-$urlredirect = new moodle_url('/mod/booking/view.php', array('id' => $id));
+$url = new moodle_url('/mod/booking/instancetemplateadd.php', ['id' => $id]);
+$urlredirect = new moodle_url('/mod/booking/view.php', ['id' => $id]);
 $PAGE->set_url($url);
 
 list($course, $cm) = get_course_and_cm_from_cmid($id);
@@ -66,8 +68,8 @@ if ($mform->is_cancelled()) {
     // Only allow generation of templates if it is either the first one
     // ... OR the user has set a valid PRO licensekey in the config settings.
     if (wb_payment::pro_version_is_activated() || $numberoftemplates == 0) {
-        $instance = $DB->get_record("course_modules", array('id' => $id), 'instance');
-        $booking = $DB->get_record("booking", array('id' => $instance->instance));
+        $instance = $DB->get_record("course_modules", ['id' => $id], 'instance');
+        $booking = $DB->get_record("booking", ['id' => $instance->instance]);
 
         $newtemplate = new stdClass();
         $newtemplate->name = $data->name;
@@ -78,7 +80,7 @@ if ($mform->is_cancelled()) {
     } else {
         // If the user does not match the requirements he will be redirected to view.php
         // ... with the corresponding message.
-        redirect($urlredirect, get_string('instance_not_saved_no_valid_license', 'booking'), 1, notification::NOTIFY_ERROR);
+        redirect($urlredirect, get_string('instancenotsavednovalidlicense', 'booking'), 1, notification::NOTIFY_ERROR);
     }
 
 } else {

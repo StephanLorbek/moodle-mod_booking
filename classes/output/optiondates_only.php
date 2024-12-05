@@ -26,7 +26,7 @@
 namespace mod_booking\output;
 
 use mod_booking\booking_option_settings;
-use mod_booking\dates_handler;
+use mod_booking\option\dates_handler;
 use renderer_base;
 use renderable;
 use templatable;
@@ -60,10 +60,6 @@ class optiondates_only implements renderable, templatable {
 
         $sessions = dates_handler::return_dates_with_strings($settings, '', true);
 
-        $dateformat = get_string('strftimedate', 'langconfig');
-        $timeformat = get_string('strftimetime', 'langconfig');
-        $datetimeformat = get_string('strftimedatetime', 'langconfig');
-
         $numberofsessions = count($sessions);
 
         $this->onesession = $numberofsessions === 1;
@@ -71,10 +67,10 @@ class optiondates_only implements renderable, templatable {
 
         foreach ($sessions as $session) {
 
-            $session->starttime = $session->startdatetime;
+            $session->datestring = $session->startdatetime;
 
             if ($session->startdate !== $session->enddate) {
-                $session->endtime = $session->enddatetime;
+                $session->datestring .= " - " . $session->enddatetime;
             }
 
         }
@@ -82,12 +78,20 @@ class optiondates_only implements renderable, templatable {
         $this->sessions = $sessions;
     }
 
+    /**
+     * Export for template
+     *
+     * @param renderer_base $output
+     *
+     * @return void
+     *
+     */
     public function export_for_template(renderer_base $output) {
 
-        return array(
+        return [
                 'showsessions' => $this->showsessions,
                 'onesession' => $this->onesession,
-                'sessions' => $this->sessions
-        );
+                'dates' => $this->sessions,
+        ];
     }
 }

@@ -18,13 +18,14 @@
  * This file contains the definition for the renderable classes for the booking instance
  *
  * @package   mod_booking
- * @copyright 2021 Bernhard Fischer {@link http://www.wunderbyte.at}
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Bernhard Fischer {@link http://www.wunderbyte.at}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 namespace mod_booking\output;
 
-use mod_booking\booking;
+use mod_booking\singleton_service;
 use renderer_base;
 use renderable;
 use stdClass;
@@ -35,7 +36,8 @@ use templatable;
  * This class prepares data for displaying a booking instance
  *
  * @package mod_booking
- * @copyright 2021 Georg Maißer {@link http://www.wunderbyte.at}
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Georg Maißer {@link http://www.wunderbyte.at}
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class coursepage_shortinfo_and_button implements renderable, templatable {
@@ -73,17 +75,17 @@ class coursepage_shortinfo_and_button implements renderable, templatable {
     /**
      * Constructor to prepare the data for courspage booking options list
      *
-     * @param stdClass $data
+     * @param object $cm
      */
     public function __construct($cm) {
         global $COURSE, $CFG;
 
         $this->cmid = $cm->id;
-        $this->booking = new booking($cm->id);
+        $this->booking = singleton_service::get_instance_of_booking_by_cmid($cm->id);
 
         $this->coursename = $COURSE->fullname;
         $this->eventtype = $this->booking->settings->eventtype;
-        $this->buttonurl = $CFG->wwwroot . '/mod/booking/view.php?id=' . $cm->id . '&whichview=showactive';
+        $this->buttonurl = $CFG->wwwroot . '/mod/booking/view.php?id=' . $cm->id . '&whichview=showall';
         $this->shortinfo = $this->booking->settings->coursepageshortinfo;
     }
 
@@ -91,12 +93,20 @@ class coursepage_shortinfo_and_button implements renderable, templatable {
      * @param renderer_base $output
      * @return array
      */
+    /**
+     * Export for template
+     *
+     * @param renderer_base $output
+     *
+     * @return array
+     *
+     */
     public function export_for_template(renderer_base $output) {
-        return array(
+        return [
                 'coursename' => $this->coursename,
                 'eventtype' => $this->eventtype,
                 'buttonurl' => $this->buttonurl,
-                'shortinfo' => $this->shortinfo
-        );
+                'shortinfo' => $this->shortinfo,
+        ];
     }
 }

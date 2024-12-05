@@ -30,6 +30,10 @@ use mod_booking\booking_option_settings;
 use MoodleQuickForm;
 use stdClass;
 
+defined('MOODLE_INTERNAL') || die();
+// Required to avoid errors after duplicatoion of bo_info's constants had been removed from bo_subinfo class.
+require_once($CFG->dirroot . '/mod/booking/classes/bo_availability/bo_info.php');
+
 /**
  * Base class for a single bo availability condition.
  *
@@ -88,10 +92,10 @@ interface bo_subcondition {
      * (when displaying all information about the activity) and 'student' cases
      * (when displaying only conditions they don't meet).
      *
-     * @param bool $full Set true if this is the 'full information' view
      * @param booking_option_settings $settings Item we're checking
      * @param int $subbookingid
      * @param int $userid userid of the user we want the description for.
+     * @param bool $full Set true if this is the 'full information' view
      * @param bool $not Set true if we are inverting the condition
      * @return string Information string (for admin) about all restrictions on
      *   this item
@@ -118,10 +122,11 @@ interface bo_subcondition {
      * @param booking_option_settings $settings
      * @param int $subbookingid
      * @param int $userid
-     * @param boolean $full
-     * @param boolean $not
+     * @param bool $full
+     * @param bool $not
+     * @param bool $fullwidth
      * @return array
      */
     public function render_button(booking_option_settings $settings,
-        int $subbookingid, $userid = 0, $full = false, $not = false): array;
+        int $subbookingid, int $userid=0, bool $full=false, bool $not=false, bool $fullwidth=true): array;
 }

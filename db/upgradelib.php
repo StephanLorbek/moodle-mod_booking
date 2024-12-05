@@ -78,3 +78,81 @@ function migrate_optionsfields_2023022800() {
         }
     }
 }
+
+/**
+ * Fix descriptionformat for all booking options.
+ */
+function fix_bookingoption_descriptionformat_2024022700() {
+    global $DB;
+    $DB->execute(
+        "UPDATE {booking_options}
+        SET descriptionformat = 1
+        WHERE descriptionformat = 0"
+    );
+}
+
+/**
+ * Fix showlistoncoursepage for all booking instances.
+ */
+function fix_showlistoncoursepage_2024030801() {
+    global $DB;
+    $DB->execute(
+        "UPDATE {booking}
+        SET showlistoncoursepage = 1
+        WHERE showlistoncoursepage = 2"
+    );
+}
+
+/**
+ * Migrate former bookingids to contextids.
+ * @return void
+ */
+function migrate_contextids_2024040901() {
+    global $DB;
+
+    $DB->execute(
+        "UPDATE {booking_rules}
+        SET contextid = 1"
+    );
+}
+
+/**
+ * Make sure we have no NULL value in template id.
+ *
+ * @return [type]
+ *
+ */
+function fix_booking_templateid() {
+
+    global $DB;
+
+    $sql = "SELECT id, templateid
+            FROM {booking}
+            WHERE templateid IS NULL";
+    $records = $DB->get_records_sql($sql);
+
+    foreach ($records as $record) {
+        $record->templateid = 0;
+        $DB->update_record('booking', $record);
+    }
+}
+
+/**
+ * Function to add the "places" information to all the existing booking_answer records.
+ *
+ * @return void
+ *
+ */
+function fix_places_for_booking_answers() {
+
+    global $DB;
+
+    // Define your SQL update query.
+    $sql = "UPDATE {booking_answers} SET places = :places";
+
+    // Define the parameters for the query.
+    $params = ['places' => 1];
+
+    // Execute the query.
+    $DB->execute($sql, $params);
+}

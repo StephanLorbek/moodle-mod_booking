@@ -16,11 +16,14 @@
 
 namespace mod_booking\booking_rules\rules;
 
+use core_plugin_manager;
 use mod_booking\booking_rules\actions_info;
 use mod_booking\booking_rules\booking_rule;
+use mod_booking\booking_rules\booking_rules;
 use mod_booking\booking_rules\conditions_info;
+use mod_booking\booking_rules\rules_info;
 use mod_booking\singleton_service;
-use mod_booking\task\send_mail_by_rule_adhoc;
+use moodle_url;
 use MoodleQuickForm;
 use stdClass;
 
@@ -38,8 +41,14 @@ require_once($CFG->dirroot . '/mod/booking/lib.php');
  */
 class rule_react_on_event implements booking_rule {
 
+    /** @var int $ruleid */
+    public $ruleid = 0;
+
     /** @var string $rulename */
     protected $rulename = 'rule_react_on_event';
+
+    /** @var string $rulenamestringid ID of localized string for name of rule*/
+    protected $rulenamestringid = 'rulereactonevent';
 
     /** @var string $name */
     public $name = null;
@@ -49,6 +58,24 @@ class rule_react_on_event implements booking_rule {
 
     /** @var int $ruleid */
     public $boevent = null;
+
+    /** @var object $intervaldata */
+    public $intervaldata = null;
+
+    /** Const state of booking option */
+    public const ALWAYS = 0;
+
+    /** Const state of booking option */
+    public const FULLYBOOKED = 1;
+
+    /** Const state of booking option */
+    public const NOTFULLYBOOKED = 2;
+
+    /** Const state of booking option */
+    public const FULLWAITINGLIST = 3;
+
+    /** Const state of booking option */
+    public const NOTFULLWAITINGLIST = 4;
 
     /**
      * Load json data from DB into the object.
@@ -68,28 +95,41 @@ class rule_react_on_event implements booking_rule {
         $ruleobj = json_decode($json);
         $this->name = $ruleobj->name;
         $this->boevent = $ruleobj->ruledata->boevent;
+        $this->intervaldata = $ruleobj->intervaldata ?? null;
     }
 
     /**
      * Only customizable functions need to return their necessary form elements.
      *
      * @param MoodleQuickForm $mform
-     * @param int $optionid
+     * @param array $repeateloptions
      * @return void
      */
     public function add_rule_to_mform(MoodleQuickForm &$mform, array &$repeateloptions) {
 
         // Only these events are currently supported and tested.
         $allowedeventkeys = [
+            'bookingoption_freetobookagain',
+            'bookinganswer_cancelled',
+            'bookingoption_booked',
+            'bookingoptionwaitinglist_booked',
+            'bookingoption_completed',
+            'bookinganswer_confirmed',
+            'bookinganswer_waitingforconfirmation',
+            'bookingoption_updated',
             'bookingoption_cancelled',
-            'bookingoption_completed'
+            'custom_message_sent',
+            'custom_bulk_message_sent',
+            'optiondates_teacher_added',
+            'optiondates_teacher_deleted',
+            'rest_script_success',
+            'enrollink_triggered',
         ];
 
         // Get a list of all booking events.
         $allevents = get_list_of_booking_events();
         $allowedevents["0"] = get_string('choose...', 'mod_booking');
 
-        // Currently, we only allow events affecting booking options.
         foreach ($allevents as $key => $value) {
             $eventnameonly = str_replace("\\mod_booking\\event\\", "", $key);
             if (in_array($eventnameonly, $allowedeventkeys)) {
@@ -97,12 +137,92 @@ class rule_react_on_event implements booking_rule {
             }
         }
 
+        // If shoppingcart is installed, we add events from shoppingcart.
+        $pluginman = core_plugin_manager::instance();
+        $shoppingcart = $pluginman->get_plugin_info('local_shopping_cart');
+        if ($shoppingcart) {
+            global $CFG;
+            require_once($CFG->dirroot . '/local/shopping_cart/lib.php');
+            $eventkeysfromshoppingcart = [
+                'payment_confirmed',
+                'item_bought',
+                'item_canceled',
+            ];
+            $shoppingcartevents = get_list_of_shoppingcart_events();
+            foreach ($shoppingcartevents as $key => $value) {
+                $eventnameonly = str_replace("\\local_shopping_cart\\event\\", "", $key);
+                if (in_array($eventnameonly, $eventkeysfromshoppingcart)) {
+                    $scallowedevents[$key] = $value;
+                }
+            }
+
+            $allowedevents = array_merge($allowedevents, $scallowedevents);
+        }
+
         // Workaround: We need a group to get hideif to work.
         $mform->addElement('static', 'rule_react_on_event_desc', '',
-            get_string('rule_react_on_event_desc', 'mod_booking'));
+            get_string('rulereactonevent_desc', 'mod_booking'));
 
         $mform->addElement('select', 'rule_react_on_event_event',
-            get_string('rule_event', 'mod_booking'), $allowedevents);
+            get_string('ruleevent', 'mod_booking'), $allowedevents);
+
+        // Add info about settings concerning bookingoption_updated event.
+        $url = new moodle_url('/admin/category.php', ['category' => 'modbookingfolder']);
+        $linktosettings = $url->out();
+
+        $mform->addElement('static', 'react_on_change_info',
+            '',
+            get_string('rulereactonchangeevent_desc', 'mod_booking', $linktosettings));
+
+        $conditions = [
+            self::ALWAYS => get_string('always', 'mod_booking'),
+            self::FULLYBOOKED => get_string('fullybooked', 'mod_booking'),
+            self::NOTFULLYBOOKED => get_string('notfullybooked', 'mod_booking'),
+            self::FULLWAITINGLIST => get_string('fullwaitinglist', 'mod_booking'),
+            self::NOTFULLWAITINGLIST => get_string('notfullwaitinglist', 'mod_booking'),
+        ];
+
+        $mform->addElement('select', 'rule_react_on_event_condition',
+            get_string('ruleeventcondition', 'mod_booking'), $conditions);
+
+        $mform->addElement('text', 'rule_react_on_event_after_completion',
+        get_string('rulereactoneventaftercompletion', 'mod_booking'));
+        $mform->setType('rule_react_on_event_after_completion', PARAM_INT);
+        $mform->addHelpButton('rule_react_on_event_after_completion', 'rulereactoneventaftercompletion', 'mod_booking');
+
+        $notborelatedevents = [
+            '\mod_booking\event\custom_message_sent',
+            '\mod_booking\event\custom_bulk_message_sent',
+            '\mod_booking\event\rest_script_success',
+        ];
+
+        $mform->hideIf('rule_react_on_event_after_completion', 'rule_react_on_event_event', 'in', $notborelatedevents);
+
+        $rules = booking_rules::get_list_of_saved_rules_by_context();
+
+        $rulesselect = [];
+        foreach ($rules as $rule) {
+            if (empty($rule)) {
+                continue;
+            }
+
+            // TODO: Better description where this rule comes from. For the moment we simply hand over the contextid.
+            $ruleobject = json_decode($rule->rulejson);
+            $rulesselect[$rule->id] = $ruleobject->name . " ($rule->contextid)";
+        }
+
+        $options = [
+            'multiple' => true,
+            'noselectionstring' => get_string('noselection', 'mod_booking'),
+        ];
+
+        $mform->addElement(
+            'autocomplete',
+            'rule_react_on_event_cancelrules',
+            get_string('rulereactoneventcancelrules', 'mod_booking'),
+            $rulesselect,
+            $options
+        );
     }
 
     /**
@@ -111,13 +231,13 @@ class rule_react_on_event implements booking_rule {
      * @return string
      */
     public function get_name_of_rule(bool $localized = true): string {
-        return $localized ? get_string($this->rulename, 'mod_booking') : $this->rulename;
+        return $localized ? get_string($this->rulenamestringid, 'mod_booking') : $this->rulename;
     }
 
     /**
      * Save the JSON for daysbefore rule defined in form.
      * The role has to determine the handler for condtion and action and get the right json object.
-     * @param stdClass &$data form data reference
+     * @param stdClass $data form data reference
      */
     public function save_rule(stdClass &$data) {
         global $DB;
@@ -134,13 +254,21 @@ class rule_react_on_event implements booking_rule {
         $jsonobject->rulename = $this->rulename;
         $jsonobject->ruledata = new stdClass();
         $jsonobject->ruledata->boevent = $data->rule_react_on_event_event ?? '';
+        $jsonobject->ruledata->condition = $data->rule_react_on_event_condition ?? '';
+        $jsonobject->ruledata->aftercompletion = $data->rule_react_on_event_after_completion ?? '';
+        $jsonobject->ruledata->cancelrules = $data->rule_react_on_event_cancelrules ?? [];
 
         $record->rulejson = json_encode($jsonobject);
         $record->rulename = $this->rulename;
-        $record->bookingid = $data->bookingid ?? 0;
+        $record->eventname = $data->rule_react_on_event_event ?? '';
+        $record->contextid = $data->contextid ?? 1;
+        if (isset($data->useastemplate)) {
+            $jsonobject->useastemplate = $data->useastemplate;
+            $record->useastemplate = $data->useastemplate;
+        }
 
         // If we can update, we add the id here.
-        if ($data->id) {
+        if (!empty($data->id)) {
             $record->id = $data->id;
             $DB->update_record('booking_rules', $record);
         } else {
@@ -151,7 +279,7 @@ class rule_react_on_event implements booking_rule {
 
     /**
      * Sets the rule defaults when loading the form.
-     * @param stdClass &$data reference to the default values
+     * @param stdClass $data reference to the default values
      * @param stdClass $record a record from booking_rules
      */
     public function set_defaults(stdClass &$data, stdClass $record) {
@@ -163,6 +291,9 @@ class rule_react_on_event implements booking_rule {
 
         $data->rule_name = $jsonobject->name;
         $data->rule_react_on_event_event = $ruledata->boevent;
+        $data->rule_react_on_event_condition = $ruledata->condition;
+        $data->rule_react_on_event_after_completion = $ruledata->aftercompletion;
+        $data->rule_react_on_event_cancelrules = $ruledata->cancelrules;
 
     }
 
@@ -173,13 +304,52 @@ class rule_react_on_event implements booking_rule {
      */
     public function execute(int $optionid = 0, int $userid = 0) {
 
+        $jsonobject = json_decode($this->rulejson);
+        $datafromevent = $jsonobject->datafromevent ?? null;
+
         // This rule executes only on event.
         // And every event will have an optionid, because it's linked to a specific option.
         if ($optionid === 0) {
-            return;
+            // But there is one special case.
+            // The payment_confirmed event may have a couple of options in the cart.
+            // We still need one optionid, so we look in the cart and take the first matching optionid.
+            if (isset($datafromevent->other->cart)) {
+                $cart = json_decode($datafromevent->other->cart);
+                foreach (($cart->historyitems ?? []) as $item) {
+                    if (
+                        $item->componentname === 'mod_booking'
+                        && $item->area === 'option'
+                    ) {
+                        $optionid = $item->itemid;
+                        break;
+                    }
+                }
+            }
+            // If there is still no option id, we abort.
+            if ($optionid == 0) {
+                return;
+            }
         }
 
-        $jsonobject = json_decode($this->rulejson);
+        // Only execute rules for bookingoption_changed event according to settings.
+        if (!empty(get_config('booking', 'limitchangestrackinginrules'))
+        && $datafromevent->eventname == '\mod_booking\event\bookingoption_updated') {
+            if (!empty($datafromevent->other->changes)) {
+                $changes = $datafromevent->other->changes;
+                foreach ($changes as $index => $change) {
+                    if (empty($change->fieldname)) {
+                        continue;
+                    }
+                    if ($this->ruleevent_excluded_via_config($change->fieldname)) {
+                        unset($datafromevent->other->changes[$index]);
+                    }
+                }
+            }
+            // If there are no more changes to be handled, we can skip the execution.
+            if (empty($datafromevent->other->changes)) {
+                return;
+            }
+        }
 
         // We reuse this code when we check for validity, therefore we use a separate function.
         $records = $this->get_records_for_execution($optionid, $userid);
@@ -212,17 +382,81 @@ class rule_react_on_event implements booking_rule {
      */
     public function check_if_rule_still_applies(int $optionid, int $userid, int $nextruntime): bool {
 
+        $jsonobject = json_decode($this->rulejson);
+        $ruledata = $jsonobject->ruledata;
+        $settings = singleton_service::get_instance_of_booking_option_settings($optionid);
+        $ba = singleton_service::get_instance_of_booking_answers($settings);
+
+        if (!$this->rule_still_in_time($jsonobject, $settings)) {
+            return false;
+        }
+
+        switch ($ruledata->condition ?? self::ALWAYS) {
+            case self::ALWAYS:
+                return true;
+            case self::FULLYBOOKED:
+                if ($ba->is_fully_booked()) {
+                    return true;
+                }
+                return false;
+            case self::NOTFULLYBOOKED:
+                if ($ba->is_fully_booked()) {
+                    return false;
+                }
+                return true;
+            case self::FULLWAITINGLIST:
+                if ($ba->is_fully_booked_on_waitinglist()) {
+                    return true;
+                }
+                return false;
+            case self::NOTFULLWAITINGLIST:
+                if ($ba->is_fully_booked_on_waitinglist()) {
+                    return false;
+                }
+                return true;
+        }
+
         // For this rule, we don't need to check because everything is sent directly after event was triggered.
         return true;
+    }
+
+    /**
+     * Checks if the courseendtime defined in bookingoption is not after time defined in rule.
+     *
+     * @param object $ruledata
+     * @param object $bookingoption
+     *
+     * @return bool
+     *
+     */
+    private static function rule_still_in_time(object $ruledata, object $bookingoption): bool {
+        $aftercompletiondays = $ruledata->ruledata->aftercompletion ?? null;
+        if (empty($aftercompletiondays)) {
+            return true;
+        };
+
+        $endtime = (int)$bookingoption->courseendtime ?? 0;
+        if (empty($endtime)) {
+            return true;
+        }
+
+        $now = time();
+        $days = (int)$aftercompletiondays;
+        $add = $days * 24 * 60 * 60;
+        if ($endtime + $add <= $now) {
+            return false;
+        } else {
+            return true;
+        }
+
     }
 
     /**
      * This helperfunction builds the sql with the help of the condition and returns the records.
      * Testmode means that we don't limit by now timestamp.
      *
-     * @param integer $optionid
-     * @param integer $userid
-     * @param bool $testmode
+     * @param int $optionid
+     * @param int $userid
      * @return array
      */
     public function get_records_for_execution(int $optionid, int $userid = 0) {
@@ -238,7 +472,7 @@ class rule_react_on_event implements booking_rule {
         $params = [
             'optionid' => $optionid,
             'userid' => $userid,
-            'json' => $this->rulejson
+            'json' => $this->rulejson,
         ];
 
         $sql = new stdClass();
@@ -265,5 +499,54 @@ class rule_react_on_event implements booking_rule {
         $records = $DB->get_records_sql($sqlstring, $params);
 
         return $records;
+    }
+
+    /**
+     * Check if event is excluded via config.
+     *
+     * @param mixed $fieldname
+     *
+     * @return bool
+     *
+     */
+    private function ruleevent_excluded_via_config($fieldname): bool {
+
+        if (empty(get_config('booking', 'limitchangestrackinginrules'))) {
+            return false;
+        }
+
+        switch ($fieldname) {
+            // Teacher.
+            case "text":
+                $config = get_config('booking', 'listentotextchange');
+                break;
+            case "teachers":
+                $config = get_config('booking', 'listentoteacherschange');
+                break;
+            // Responsiblecontact.
+            case "responsiblecontact":
+                $config = get_config('booking', 'listentoresponsiblepersonchange');
+                break;
+            // Beginning and ending or location of date.
+            case "dates":
+                $config = get_config('booking', 'listentotimestampchange');
+                break;
+            // Address can be with or without entities plugin.
+            case "address":
+                $config = get_config('booking', 'listentoaddresschange');
+                break;
+            case "entities":
+                $config = get_config('booking', 'listentoaddresschange');
+                break;
+            default:
+                return true;
+        }
+
+        // Empty means excluded from tracking.
+        if (empty($config)) {
+            return true;
+        } else {
+            return false;
+        }
     }
 }

@@ -32,27 +32,34 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->libdir.'/tablelib.php');
 
 /**
- * mybookings_table class
+ * Class to hahdle mybookings_table
+ *
+ * @package mod_booking
+ * @copyright 2021 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class mybookings_table extends table_sql {
 
     /**
      * mybookings_table constructor.
      *
-     * @param $uniqueid
-     * @param $cmid
+     * @param string $uniqueid
      * @throws \coding_exception
      */
     public function __construct($uniqueid) {
         parent::__construct($uniqueid);
 
         // Define the list of columns to show.
-        $columns = array('name', 'text', 'status', 'coursestarttime');
+        $columns = ['name', 'text', 'status', 'coursestarttime'];
         $this->define_columns($columns);
 
         // Define the titles of columns to show in header.
-        $headers = array(get_string('mybookingsbooking', 'booking'), get_string('mybookingsoption', 'booking'),
-            get_string('status', 'booking'), get_string('coursestarttime', 'booking'));
+        $headers = [
+            get_string('mybookingsbooking', 'booking'),
+            get_string('mybookingsoption', 'booking'),
+            get_string('status', 'booking'),
+            get_string('coursestarttime', 'booking'),
+        ];
         $this->define_headers($headers);
         $this->no_sorting('status');
     }
@@ -60,7 +67,7 @@ class mybookings_table extends table_sql {
     /**
      * Column course start time
      *
-     * @param $values
+     * @param mixed $values
      * @return string
      */
     protected function col_coursestarttime($values) {
@@ -74,34 +81,44 @@ class mybookings_table extends table_sql {
     /**
      * Column text
      *
-     * @param $values
+     * @param mixed $values
      * @return string
      * @throws \moodle_exception
      */
     protected function col_text($values) {
-        $optionurl = new moodle_url("/mod/booking/view.php?id={$values->cmid}" .
-            "&optionid={$values->optionid}&whichview=showonlyone");
+        global $CFG;
+        $optionurl = new moodle_url($CFG->wwwroot . '/mod/booking/view.php', [
+            'id' => booking_option::get_cmid_from_optionid($values->optionid),
+            'optionid' => $values->optionid,
+            'whichview' => 'showonlyone',
+        ]);
 
-        return "<a href='{$optionurl}'>{$values->text}</a>";
+        $text = format_string($values->text);
+        return "<a href='{$optionurl}'>{$text}</a>";
     }
 
     /**
      * Column name
      *
-     * @param $values
+     * @param mixed $values
      * @return string
      */
     protected function col_name($values) {
         $bookingurl = new moodle_url("/mod/booking/view.php?id={$values->cmid}");
         $courseurl = new moodle_url("/course/view.php?id={$values->courseid}");
 
-        return "<a href='{$bookingurl}'>{$values->name}</a> (<a href='{$courseurl}'>{$values->fullname}</a>)";
+        $name = format_text($values->name);
+        $name = strip_tags($name);
+        $fullname = format_text($values->fullname);
+        $fullname = strip_tags($fullname);
+
+        return "<a href='{$bookingurl}'>{$name}</a> (<a href='{$courseurl}'>{$fullname}</a>)";
     }
 
     /**
      * Column status
      *
-     * @param $values
+     * @param mixed $values
      * @return string
      * @throws \coding_exception
      */

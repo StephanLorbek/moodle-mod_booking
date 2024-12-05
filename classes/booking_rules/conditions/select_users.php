@@ -14,9 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * Condition to identify users by entering a value which should match a custom user profile field.
+ *
+ * @package mod_booking
+ * @copyright 2022 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Georg Maißer
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace mod_booking\booking_rules\conditions;
 
 use mod_booking\booking_rules\booking_rule_condition;
+use mod_booking\singleton_service;
 use MoodleQuickForm;
 use stdClass;
 
@@ -25,8 +35,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot . '/mod/booking/lib.php');
 
 /**
- * Condition to identify users by entering a value
- * which should match a custom user profile field.
+ * Class to handle condition to identify users by entering a value which should match a custom user profile field.
  *
  * @package mod_booking
  * @copyright 2022 Wunderbyte GmbH <info@wunderbyte.at>
@@ -38,8 +47,14 @@ class select_users implements booking_rule_condition {
     /** @var string $conditionname */
     public $conditionname = 'select_users';
 
+    /** @var string $conditionnamestringid Id of localized string for name of rule condition*/
+    protected $conditionnamestringid = 'selectusers';
+
     /** @var array $userids */
     public $userids = [];
+
+    /** @var string $rulejson */
+    public $rulejson = '';
 
     /**
      * Function to tell if a condition can be combined with a certain booking rule type.
@@ -74,39 +89,50 @@ class select_users implements booking_rule_condition {
      * Add condition to mform.
      *
      * @param MoodleQuickForm $mform
+     * @param ?array $ajaxformdata
      * @return void
      */
-    public function add_condition_to_mform(MoodleQuickForm &$mform, array &$ajaxformdata = null) {
-        global $DB;
+    public function add_condition_to_mform(MoodleQuickForm &$mform, ?array &$ajaxformdata = null) {
 
-        $users = get_users();
-
-        foreach ($users as $user) {
-            $listofusers[$user->id] = "$user->firstname $user->lastname ($user->email)";
-
-        }
-
-        $options = array(
+        $options = [
+            'ajax' => 'mod_booking/form_users_selector',
             'multiple' => true,
-            'noselectionstring' => get_string('allareas', 'search'),
-        );
+            'noselectionstring' => get_string('choose...', 'mod_booking'),
+            'valuehtmlcallback' => function($value) {
+                global $OUTPUT;
+                if (empty($value)) {
+                    return get_string('choose...', 'mod_booking');
+                }
+                $user = singleton_service::get_instance_of_user((int)$value);
+                $details = [
+                    'id' => $user->id,
+                    'email' => $user->email,
+                    'firstname' => $user->firstname,
+                    'lastname' => $user->lastname,
+                ];
+                return $OUTPUT->render_from_template(
+                        'mod_booking/form-user-selector-suggestion', $details);
+            },
+        ];
 
         $mform->addElement('autocomplete', 'condition_select_users_userids',
-            get_string('condition_select_users_userids', 'mod_booking'), $listofusers, $options);
+            get_string('conditionselectusersuserids', 'mod_booking'), [], $options);
 
     }
 
     /**
      * Get the name of the rule.
+     *
+     * @param bool $localized
      * @return string the name of the rule
      */
     public function get_name_of_condition($localized = true) {
-        return $localized ? get_string($this->conditionname, 'mod_booking') : $this->conditionname;
+        return $localized ? get_string($this->conditionnamestringid, 'mod_booking') : $this->conditionname;
     }
 
     /**
      * Saves the JSON for the condition into the $data object.
-     * @param stdClass &$data form data reference
+     * @param stdClass $data form data reference
      */
     public function save_condition(stdClass &$data) {
 
@@ -125,7 +151,7 @@ class select_users implements booking_rule_condition {
 
     /**
      * Sets the rule defaults when loading the form.
-     * @param stdClass &$data reference to the default values
+     * @param stdClass $data reference to the default values
      * @param stdClass $record a record from booking_rules
      */
     public function set_defaults(stdClass &$data, stdClass $record) {
@@ -152,7 +178,8 @@ class select_users implements booking_rule_condition {
 
         // We need the hack with uniqueid so we do not lose entries ...as the first column needs to be unique.
 
-        $sql->select = " CONCAT(bo.id, '-', u.id) uniqueid, " . $sql->select;
+        $concat = $DB->sql_concat("bo.id", "'-'", "u.id");
+        $sql->select = " $concat uniqueid, " . $sql->select;
         $sql->select .= ", u.id userid";
 
         $sql->from .= " JOIN {user} u ON 1 = 1 "; // We want to join all users here.

@@ -14,6 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * Report table to show and edit teachers for specific sessions (a.k.a. optiondates).
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace mod_booking\table;
 
 defined('MOODLE_INTERNAL') || die();
@@ -22,32 +30,26 @@ global $CFG;
 require_once(__DIR__ . '/../../lib.php');
 require_once($CFG->libdir.'/tablelib.php');
 
+use cache_helper;
+use context_system;
 use dml_exception;
 use html_writer;
-use mod_booking\booking_option;
-use mod_booking\dates_handler;
+use local_wunderbyte_table\output\table;
+use local_wunderbyte_table\wunderbyte_table;
+use mod_booking\option\dates_handler;
+use mod_booking\singleton_service;
 use moodle_url;
-use table_sql;
 
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * Report table to show and edit teachers for specific sessions (a.k.a. optiondates).
+ * Class to handle report table to show and edit teachers for specific sessions (a.k.a. optiondates).
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class optiondates_teachers_table extends table_sql {
-
-    /**
-     * Constructor
-     * @param string $uniqueid all tables have to have a unique id, this is used
-     */
-    public function __construct(string $uniqueid) {
-        parent::__construct($uniqueid);
-
-        global $PAGE;
-        $this->baseurl = $PAGE->url;
-
-        // Columns and headers are not defined in constructor, in order to keep things as generic as possible.
-    }
+class optiondates_teachers_table extends wunderbyte_table {
 
     /**
      * This function is called for each data row to allow processing of the
@@ -133,16 +135,120 @@ class optiondates_teachers_table extends table_sql {
      * @throws dml_exception
      */
     public function col_edit(object $values): string {
-
         $ret = '';
-        $ret .= html_writer::div(html_writer::link('#', "<h5><i class='fa fa-edit'></i></h5>",
-            ['class' => 'btn-modal-edit-teachers',
-            'data-cmid' => $_GET['id'],
-            'data-optionid' => $values->optionid,
-            'data-teachers' => $values->teachers,
-            'data-optiondateid' => $values->optiondateid
-        ]));
+        if (!$this->is_downloading() && !$values->reviewed == 1) {
 
+            $settings = singleton_service::get_instance_of_booking_option_settings($values->optionid);
+            $cmid = $settings->cmid;
+
+            $ret .= html_writer::div(html_writer::link('#', "<h5><i class='icon fa fa-edit'></i></h5>",
+                ['class' => 'btn-modal-edit-teachers',
+                'data-cmid' => $cmid,
+                'data-optionid' => $values->optionid,
+                'data-teachers' => $values->teachers,
+                'data-optiondateid' => $values->optiondateid,
+                'title' => get_string('editteachers', 'mod_booking'),
+                'aria-label' => get_string('editteachers', 'mod_booking'),
+            ]));
+        } else if ($values->reviewed == 1) {
+            $ret .= "<h5 style='color: #D3D3D3; cursor: not-allowed;'><i class='icon fa fa-edit'></i></h5>";
+        }
         return $ret;
+    }
+
+    /**
+     * This function is called for each data row to allow processing of the
+     * deduction value.
+     *
+     * @param object $values Contains object with all the values of record.
+     * @return string $string Rendered name (text) of the booking option.
+     * @throws dml_exception
+     */
+    public function col_deduction(object $values): string {
+        global $DB;
+        $optiondateid = $values->optiondateid;
+        $ret = '';
+        if ($deductions = $DB->get_records('booking_odt_deductions', ['optiondateid' => $optiondateid])) {
+            foreach ($deductions as $ded) {
+                $teacher = singleton_service::get_instance_of_user($ded->userid);
+                if (!$this->is_downloading()) {
+                    $ret .= '<i class="fa fa-minus-square-o" aria-hidden="true"></i>&nbsp;';
+                    $ret .= "<b>$teacher->firstname $teacher->lastname</b>";
+                } else {
+                    $ret .= "$teacher->firstname $teacher->lastname";
+                }
+                if (!empty($ded->reason)) {
+                    $ret .= " | " . get_string('deductionreason', 'mod_booking') . ": $ded->reason";
+                }
+                $ret .= "<br/>";
+            }
+        }
+        return $ret;
+    }
+
+    /**
+     * This function is called for each data row to allow processing of the
+     * 'reviewed' value.
+     *
+     * @param object $values Contains object with all the values of record.
+     * @return string $string Rendered edit button.
+     * @throws dml_exception
+     */
+    public function col_reviewed(object $values): string {
+        global $OUTPUT;
+
+        if ($this->is_downloading()) {
+            return $values->reviewed ? get_string('yes') : get_string('no');
+        }
+
+        $data[] = [
+            'label' => get_string('reviewed', 'mod_booking'), // Name of your action button.
+            'class' => 'optiondates-teachers-reviewed-checkbox',
+            'id' => $values->optiondateid,
+            'methodname' => 'togglecheckbox', // The method needs to be added to your child of wunderbyte_table class.
+            'ischeckbox' => true,
+            'checked' => $values->reviewed == 1,
+            'disabled' => !has_capability('mod/booking:canreviewsubstitutions', context_system::instance()),
+            'data' => [ // Will be added eg as data-id = $values->id, so values can be transmitted to the method above.
+                'id' => $values->optiondateid,
+                'labelcolumn' => 'username',
+            ],
+        ];
+
+        // This transforms the array to make it easier to use in mustache template.
+        table::transform_actionbuttons_array($data);
+
+        return $OUTPUT->render_from_template('local_wunderbyte_table/component_actionbutton', ['showactionbuttons' => $data]);;
+    }
+
+    /**
+     * Toggle checkbox.
+     *
+     * @param int $optiondateid
+     * @param string $data
+     * @return array
+     */
+    public function action_togglecheckbox(int $optiondateid, string $data): array {
+        global $DB;
+
+        if (!has_capability('mod/booking:canreviewsubstitutions', context_system::instance())) {
+            return [
+                'success' => 0,
+                'message' => get_string('error:missingcapability', 'mod_booking'),
+            ];
+        }
+
+        $dataobject = json_decode($data);
+
+        if ($record = $DB->get_record('booking_optiondates', ['id' => $optiondateid])) {
+            $record->reviewed = $dataobject->state == 'true' ? 1 : 0;
+            $DB->update_record('booking_optiondates', $record);
+            cache_helper::purge_by_event('setbackcachedteachersjournal');
+        }
+
+        return [
+            'success' => 1,
+            'message' => '',
+        ];
     }
 }

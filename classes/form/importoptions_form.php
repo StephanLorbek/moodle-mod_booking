@@ -13,6 +13,15 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Habdling importoptions form
+ *
+ * @package mod_booking
+ * @copyright 2024 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace mod_booking\form;
 
 use core_text;
@@ -27,6 +36,8 @@ require_once("$CFG->libdir/formslib.php");
  * Class importoptions_form
  *
  * @package mod_booking
+ * @copyright 2024 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class importoptions_form extends moodleform {
 
@@ -40,7 +51,7 @@ class importoptions_form extends moodleform {
 
         $mform = $this->_form;
         $mform->addElement('filepicker', 'csvfile', get_string('csvfile', 'booking'), null,
-                array('maxbytes' => $CFG->maxbytes, 'accepted_types' => '*'));
+                ['maxbytes' => $CFG->maxbytes, 'accepted_types' => '*']);
         $mform->addRule('csvfile', null, 'required', null, 'client');
 
         $choices = csv_import_reader::get_delimiter_list();
@@ -69,11 +80,15 @@ class importoptions_form extends moodleform {
     }
 
     /**
+     * Form validation.
      *
-     * {@inheritDoc}
-     * @see moodleform::validation()
+     * @param array $data
+     * @param array $files
+     *
+     * @return array
+     *
      */
     public function validation($data, $files) {
-        return array();
+        return [];
     }
 }

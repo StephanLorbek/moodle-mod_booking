@@ -45,9 +45,24 @@ require_once($CFG->dirroot . '/mod/booking/lib.php');
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class optionhasstarted implements bo_condition {
-
     /** @var int $id Standard Conditions have hardcoded ids. */
-    public $id = BO_COND_OPTIONHASSTARTED;
+    public $id = MOD_BOOKING_BO_COND_OPTIONHASSTARTED;
+
+    /** @var bool $overridable Indicates if the condition can be overriden. */
+    public $overridable = true;
+
+    /** @var bool $overwrittenbybillboard Indicates if the condition can be overwritten by the billboard. */
+    public $overwrittenbybillboard = true;
+
+    /**
+     * Get the condition id.
+     *
+     * @return int
+     *
+     */
+    public function get_id(): int {
+        return $this->id;
+    }
 
     /**
      * Needed to see if class can take JSON.
@@ -73,7 +88,7 @@ class optionhasstarted implements bo_condition {
      * @param bool $not Set true if we are inverting the condition
      * @return bool True if available
      */
-    public function is_available(booking_option_settings $settings, $userid, $not = false):bool {
+    public function is_available(booking_option_settings $settings, int $userid, bool $not = false): bool {
 
         // Settings of the booking instance.
         $bookingsettings = singleton_service::get_instance_of_booking_settings_by_cmid($settings->cmid);
@@ -81,6 +96,9 @@ class optionhasstarted implements bo_condition {
         // We kept the name "allowupdate" for legacy reasons.
         // The actual meaning of this field is "allow booking after option has started".
         if ($bookingsettings->allowupdate == 1) {
+            $isavailable = true;
+        } else if (!empty($settings->duration)) {
+            // For booking options with a duration (self-learning courses) this condition may never block.
             $isavailable = true;
         } else if (!empty($settings->coursestarttime)) {
             // In this case, we have to check if the booking option has already started.
@@ -100,6 +118,18 @@ class optionhasstarted implements bo_condition {
     }
 
     /**
+     * Each function can return additional sql.
+     * This will be used if the conditions should not only block booking...
+     * ... but actually hide the conditons alltogether.
+     *
+     * @return array
+     */
+    public function return_sql(): array {
+
+        return ['', '', '', [], ''];
+    }
+
+    /**
      * The hard block is complementary to the is_available check.
      * While is_available is used to build eg also the prebooking modals and...
      * ... introduces eg the booking policy or the subbooking page, the hard block is meant to prevent ...
@@ -108,11 +138,11 @@ class optionhasstarted implements bo_condition {
      * ... as they are not necessary, but return true when the booking policy is not yet answered.
      * Hard block is only checked if is_available already returns false.
      *
-     * @param booking_option_settings $booking_option_settings
-     * @param integer $userid
-     * @return boolean
+     * @param booking_option_settings $settings
+     * @param int $userid
+     * @return bool
      */
-    public function hard_block(booking_option_settings $settings, $userid):bool {
+    public function hard_block(booking_option_settings $settings, $userid): bool {
         return true;
     }
 
@@ -126,22 +156,22 @@ class optionhasstarted implements bo_condition {
      * (when displaying all information about the activity) and 'student' cases
      * (when displaying only conditions they don't meet).
      *
-     * @param bool $full Set true if this is the 'full information' view
      * @param booking_option_settings $settings Item we're checking
      * @param int $userid User ID to check availability for
+     * @param bool $full Set true if this is the 'full information' view
      * @param bool $not Set true if we are inverting the condition
      * @return array availability and Information string (for admin) about all restrictions on
      *   this item
      */
-    public function get_description(booking_option_settings $settings, $userid = null, $full = false, $not = false):array {
+    public function get_description(booking_option_settings $settings, $userid = null, $full = false, $not = false): array {
 
         $description = '';
 
         $isavailable = $this->is_available($settings, $userid, $not);
 
-        $description = $this->get_description_string($isavailable, $full);
+        $description = $this->get_description_string($isavailable, $full, $settings);
 
-        return [$isavailable, $description, BO_PREPAGE_NONE, BO_BUTTON_JUSTMYALERT];
+        return [$isavailable, $description, MOD_BOOKING_BO_PREPAGE_NONE, MOD_BOOKING_BO_BUTTON_MYALERT];
     }
 
     /**
@@ -160,10 +190,11 @@ class optionhasstarted implements bo_condition {
      * Not all bo_conditions need to take advantage of this. But eg a condition which requires...
      * ... the acceptance of a booking policy would render the policy with this function.
      *
-     * @param integer $optionid
+     * @param int $optionid
+     * @param int $userid optional user id
      * @return array
      */
-    public function render_page(int $optionid) {
+    public function render_page(int $optionid, int $userid = 0) {
         return [];
     }
 
@@ -177,12 +208,18 @@ class optionhasstarted implements bo_condition {
      * @param int $userid
      * @param bool $full
      * @param bool $not
+     * @param bool $fullwidth
      * @return array
      */
-    public function render_button(booking_option_settings $settings,
-        int $userid = 0, bool $full = false, bool $not = false, bool $fullwidth = true): array {
+    public function render_button(
+        booking_option_settings $settings,
+        int $userid = 0,
+        bool $full = false,
+        bool $not = false,
+        bool $fullwidth = true
+    ): array {
 
-        $label = $this->get_description_string(false, $full);
+        $label = $this->get_description_string(false, $full, $settings);
 
         return bo_info::render_button($settings, $userid, $label, 'alert alert-warning', true, $fullwidth, 'alert', 'option');
     }
@@ -192,15 +229,24 @@ class optionhasstarted implements bo_condition {
      *
      * @param bool $isavailable
      * @param bool $full
+     * @param booking_option_settings $settings
      * @return string
      */
-    private function get_description_string($isavailable, $full) {
+    private function get_description_string(bool $isavailable, bool $full, booking_option_settings $settings) {
+
+        if (
+            !$isavailable
+            && $this->overwrittenbybillboard
+            && !empty($desc = bo_info::apply_billboard($this, $settings))
+        ) {
+            return $desc;
+        }
         if ($isavailable) {
-            $description = $full ? get_string('bo_cond_optionhasstarted_full_available', 'mod_booking') :
-                get_string('bo_cond_optionhasstarted_available', 'mod_booking');
+            $description = $full ? get_string('bocondoptionhasstartedfullavailable', 'mod_booking') :
+                get_string('bocondoptionhasstartedavailable', 'mod_booking');
         } else {
-            $description = $full ? get_string('bo_cond_optionhasstarted_full_not_available', 'mod_booking') :
-                get_string('bo_cond_optionhasstarted_not_available', 'mod_booking');
+            $description = $full ? get_string('bocondoptionhasstartedfullnotavailable', 'mod_booking') :
+                get_string('bocondoptionhasstartednotavailable', 'mod_booking');
         }
         return $description;
     }

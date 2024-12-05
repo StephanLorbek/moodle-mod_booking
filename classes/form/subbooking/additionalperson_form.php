@@ -49,7 +49,7 @@ use stdClass;
  */
 class additionalperson_form extends dynamic_form {
 
-    /** @param int $id */
+    /** @var int $id */
     private $id = null;
 
     /**
@@ -115,12 +115,11 @@ class additionalperson_form extends dynamic_form {
      */
     public function definition(): void {
 
-        global $OUTPUT;
-
         $formdata = $this->_ajaxformdata;
         $mform = $this->_form;
 
         $id = $formdata['id'];
+        $subbooking = subbookings_info::get_subbooking_by_area_and_id('subbooking', $id);
 
         // We know this is already a filled out form when we have this key.
         if (isset($formdata["subbooking_addpersons"])) {
@@ -134,19 +133,20 @@ class additionalperson_form extends dynamic_form {
 
         $mform->addElement('hidden', 'id', $id);
 
-        $mform->addElement('static', 'subbookingaddpersondesc', '', get_string('subbooking_additionalperson_desc', 'mod_booking'));
+        $mform->addElement('static', 'subbookingaddpersondescription', '',
+            $subbooking->description ?? get_string('subbookingadditionalperson_desc', 'mod_booking'));
 
         $mform->registerNoSubmitButton('btn_addperson');
-        $buttonargs = array('style' => 'visibility:hidden;');
+        $buttonargs = ['style' => 'visibility:hidden;'];
         $categoryselect = [
             $mform->createElement('select', 'subbooking_addpersons',
-            get_string('subbooking_addpersons', 'mod_booking'), [0 => 0, 1 => 1, 2 => 2, 3 => 3, 4 => 4]),
+            get_string('subbookingaddpersons', 'mod_booking'), [0 => 0, 1 => 1, 2 => 2, 3 => 3, 4 => 4]),
             $mform->createElement('submit',
                 'btn_addperson',
-                get_string('subbooking_addpersons', 'mod_booking'),
-                $buttonargs)
+                get_string('subbookingaddpersons', 'mod_booking'),
+                $buttonargs),
         ];
-        $mform->addGroup($categoryselect, 'subbooking_addpersons', get_string('subbooking_addpersons', 'mod_booking'), ' ', false);
+        $mform->addGroup($categoryselect, 'subbooking_addpersons', get_string('subbookingaddpersons', 'mod_booking'), ' ', false);
         $mform->setType('btn_addperson', PARAM_NOTAGS);
 
         $bookedpersons = $formdata['subbooking_addpersons'] ?? $data->subbooking_addpersons ?? 0;
@@ -162,14 +162,10 @@ class additionalperson_form extends dynamic_form {
 
         // We only show the "Add to cart button" when we actually have sth to add to the cart.
         if ($bookedpersons > 0) {
-            $subbooking = subbookings_info::get_subbooking_by_area_and_id('subbooking', $formdata['id']);
             $settings = singleton_service::get_instance_of_booking_option_settings($subbooking->optionid);
             $html = booking_subbookit::render_bookit_button($settings, $subbooking->id);
             $mform->addElement('html', $html);
         }
-
-        // phpcs:ignore
-        // $this->add_action_buttons();
     }
 
     /**
@@ -184,13 +180,13 @@ class additionalperson_form extends dynamic_form {
         $counter = 1;
         while ($data["subbooking_addpersons"] >= $counter) {
             if (empty($data['person_firstname_' . $counter])) {
-                $errors['person_firstname_' . $counter] = get_string('isempty', 'mod_booking');
+                $errors['person_firstname_' . $counter] = get_string('error:entervalue', 'mod_booking');
             }
             if (empty($data['person_lastname_' . $counter])) {
-                $errors['person_lastname_' . $counter] = get_string('isempty', 'mod_booking');
+                $errors['person_lastname_' . $counter] = get_string('error:entervalue', 'mod_booking');
             }
             if (empty($data['person_age_' . $counter])) {
-                $errors['person_age_' . $counter] = get_string('isempty', 'mod_booking');
+                $errors['person_age_' . $counter] = get_string('error:entervalue', 'mod_booking');
             }
             $counter++;
         }
@@ -210,10 +206,10 @@ class additionalperson_form extends dynamic_form {
      * Helper function to store data in cache.
      *
      * @param object $data
-     * @param object $user
+     * @param ?object $user
      * @return void
      */
-    public static function store_data_in_cache($data, $user = null) {
+    public static function store_data_in_cache($data, ?object $user = null) {
 
         global $USER;
 
@@ -237,11 +233,11 @@ class additionalperson_form extends dynamic_form {
     /**
      * Helper function to store data in cache.
      *
-     * @param int $data
-     * @param object $user
+     * @param int $subbookingid
+     * @param object|null $user
      * @return object
      */
-    public static function get_data_from_cache($subbookingid, $user = null) {
+    public static function get_data_from_cache($subbookingid, ?object $user = null) {
 
         global $USER;
 

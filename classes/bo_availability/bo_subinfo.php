@@ -37,20 +37,6 @@ use moodle_exception;
 use MoodleQuickForm;
 use stdClass;
 
-// The blocking condition can return a value to define which button to use.
-define('BO_BUTTON_INDIFFERENT', 0);
-define('BO_BUTTON_MYBUTTON', 1); // Used for price or book it.
-define('BO_BUTTON_NOBUTTON', 2); // Forces no button (Eg special subbookings).
-define('BO_BUTTON_MYALERT', 3); // Alert is a weaker form of MYBUTTON. With special rights, Button is still shown.
-define('BO_BUTTON_JUSTMYALERT', 4); // A strong Alert which also prevents buttons to be displayed.
-
-// Define if there are sites and if so, if they are prepend, postpend or booking relevant.
-define('BO_PREPAGE_NONE', 0); // This condition provides no page.
-define('BO_PREPAGE_BOOK', 1); // This condition does only provide a booking page (button or price).
-                              // It's only used when there are other pages as well.
-define('BO_PREPAGE_PREBOOK', 2); // This should be before the bookit button.
-define('BO_PREPAGE_POSTBOOK', 3); // This should be after the bookit button.
-
 /**
  * class for conditional availability information of a booking option
  *
@@ -78,7 +64,7 @@ class bo_subinfo {
     /**
      * Constructs with item details.
      * @param booking_option_settings $settings
-     * @param integer $subbookingid
+     * @param int $subbookingid
      */
     public function __construct(booking_option_settings $settings, int $subbookingid) {
 
@@ -107,11 +93,11 @@ class bo_subinfo {
      * This function displays debugging() messages if the availability
      * information is invalid.
      *
-     * @param int optionid
+     * @param ?int $optionid
      * @param int $userid If set, specifies a different user ID to check availability for
      * @return array [isavailable, description]
      */
-    public function is_available(int $optionid = null, int $userid = 0):array {
+    public function is_available(?int $optionid = null, int $userid = 0): array {
 
         if (!$optionid) {
             $optionid = $this->optionid;
@@ -142,12 +128,12 @@ class bo_subinfo {
     /**
      * Checks all the available conditions for a given subbooking to check it's availability.
      *
-     * @param integer $optionid
-     * @param integer $subbookingid
-     * @param integer $userid
+     * @param int $optionid
+     * @param int $subbookingid
+     * @param int $userid
      * @return array
      */
-    public static function get_subcondition_results(int $optionid, int $subbookingid, int $userid = 0):array {
+    public static function get_subcondition_results(int $optionid, int $subbookingid, int $userid = 0): array {
         global $USER, $CFG;
 
         require_once($CFG->dirroot . '/mod/booking/lib.php');
@@ -180,7 +166,7 @@ class bo_subinfo {
                 'description' => $description,
                 'classname' => $classname,
                 'button' => $button, // This indicates if this condition provides a button.
-                'insertpage' => $insertpage // Bool, only in combination with is available false.
+                'insertpage' => $insertpage, // Bool, only in combination with is available false.
             ];
         }
 
@@ -208,11 +194,11 @@ class bo_subinfo {
      * This function displays debugging() messages if the availability
      * information is invalid.
      *
-     * @param \course_modinfo $modinfo Usually leave as null for default
+     * @param ?\course_modinfo $modinfo Usually leave as null for default
      * @return string Information string (for admin) about all restrictions on
      *   this item
      */
-    public function get_full_information(\course_modinfo $modinfo = null) {
+    public function get_full_information(?\course_modinfo $modinfo = null) {
         // Do nothing if there are no availability restrictions.
         if (is_null($this->availability)) {
             return '';
@@ -222,17 +208,16 @@ class bo_subinfo {
     /**
      * Obtains an array with the id, the availability and the description of the actually blocking condition.
      *
-     * @param bool $full Set true if this is the 'full information' view
      * @param booking_option_settings $settings Item we're checking
-     * @param integer $subbookingid
+     * @param int $subbookingid
      * @param int $userid User ID to check availability for
-     * @param bool $not Set true if we are inverting the condition
+     * @param bool $full Set true if this is the 'full information' view
      * @return array availability and Information string (for admin) about all restrictions on
      *   this item
      */
-    public function get_description(booking_option_settings $settings, int $subbookingid, $userid = null, $full = false):array {
+    public function get_description(booking_option_settings $settings, int $subbookingid, $userid = null, $full = false): array {
 
-        return $this->is_available($settings->id, $subbookingid, $userid, false);
+        return $this->is_available($settings->id, $userid);
     }
 
     /**
@@ -244,24 +229,11 @@ class bo_subinfo {
      */
     public static function add_conditions_to_mform(MoodleQuickForm &$mform, int $optionid) {
         global $DB;
-        // Workaround: Only show, if it is not turned off in the option form config.
-        // We currently need this, because hideIf does not work with headers.
-        // In expert mode, we always show everything.
-        $showconditionsheader = true;
-        $formmode = get_user_preferences('optionform_mode');
-        if ($formmode !== 'expert') {
-            $cfgconditionsheader = $DB->get_field('booking_optionformconfig', 'active',
-                ['elementname' => 'availabilityconditions']);
-            if ($cfgconditionsheader === "0") {
-                $showconditionsheader = false;
-            }
-        }
-        if ($showconditionsheader) {
-            $mform->addElement('header', 'availabilityconditions',
-                get_string('availabilityconditions', 'mod_booking'));
-        }
 
-        $conditions = self::get_subconditions(CONDPARAM_MFORM_ONLY);
+        $mform->addElement('header', 'availabilityconditions',
+            get_string('availabilityconditions', 'mod_booking'));
+
+        $conditions = self::get_subconditions(MOD_BOOKING_CONDPARAM_MFORM_ONLY);
 
         foreach ($conditions as $condition) {
             // For each condition, add the appropriate form fields.
@@ -272,7 +244,7 @@ class bo_subinfo {
     /**
      * Save all mform conditions.
      *
-     * @param stdClass &$fromform reference to the form data
+     * @param stdClass $fromform reference to the form data
      * @return void
      */
     public static function save_json_conditions_from_form(stdClass &$fromform) {
@@ -280,7 +252,7 @@ class bo_subinfo {
         $optionid = $fromform->optionid;
 
         if (!empty($optionid) && $optionid > 0) {
-            $conditions = self::get_subconditions(CONDPARAM_JSON_ONLY);
+            $conditions = self::get_subconditions();
             $arrayforjson = [];
 
             foreach ($conditions as $condition) {
@@ -316,7 +288,7 @@ class bo_subinfo {
         // We just want filenames, as they are also the classnames.
         foreach ($filelist as $filepath) {
             $path = pathinfo($filepath);
-            $filename = 'mod_booking\bo_availability\subconditions\\' . $path['filename'];
+            $filename = 'mod_booking\\bo_availability\\subconditions\\' . $path['filename'];
 
             // We instantiate all the classes, because we need some information.
             if (class_exists($filename)) {
@@ -336,7 +308,7 @@ class bo_subinfo {
      * @return null|object
      */
     private static function get_condition($conditionname) {
-        $filename = 'mod_booking\bo_availability\conditions\\' . $conditionname . '.php';
+        $filename = 'mod_booking\\bo_availability\\conditions\\' . $conditionname . '.php';
 
         if (class_exists($filename)) {
             return new $filename();
@@ -382,9 +354,9 @@ class bo_subinfo {
      * @param string $style any bootstrap style like 'success', 'danger' or 'warning'
      * @param int $optionid option id
      * @param bool $showprice true if price should be shown
-     * @param stdClass $optionvalues object containing option data to render col_price
+     * @param ?stdClass $optionvalues object containing option data to render col_price
      * @param bool $shownotificationlist true for symbol to subscribe to notification list
-     * @param stdClass $usertobuyfor user to buy for
+     * @param ?stdClass $usertobuyfor user to buy for
      * @param bool $modalfordescription
      */
     public static function render_conditionmessage(
@@ -392,9 +364,9 @@ class bo_subinfo {
             string $style = 'warning',
             int $optionid = 0,
             bool $showprice = false,
-            stdClass $optionvalues = null,
+            ?stdClass $optionvalues = null,
             bool $shownotificationlist = false,
-            stdClass $usertobuyfor = null,
+            ?stdClass $usertobuyfor = null,
             bool $modalfordescription = false) {
 
         global $PAGE;
@@ -441,7 +413,7 @@ class bo_subinfo {
      * ... and returns the classname as string of current page.
      *
      * @param array $results
-     * @param integer $pagenumber
+     * @param int $pagenumber
      * @return string
      */
     private static function return_class_of_current_page(array $results, int $pagenumber) {
@@ -471,27 +443,27 @@ class bo_subinfo {
         $showbutton = true;
 
         // First, sort all the pages according to this system:
-        // Depending on the BO_PREPAGE_x constant, we order them pre or post the real booking button.
+        // Depending on the MOD_BOOKING_BO_PREPAGE_x constant, we order them pre or post the real booking button.
         foreach ($results as $result) {
 
             // One no button condition tetermines this for all.
-            if ($result['button'] === BO_BUTTON_NOBUTTON) {
+            if ($result['button'] === MOD_BOOKING_BO_BUTTON_NOBUTTON) {
                 $showbutton = false;
             }
 
             $newclass = [
                 'id' => $result['id'],
-                'classname' => $result['classname']
+                'classname' => $result['classname'],
             ];
 
             switch ($result['insertpage']) {
-                case BO_PREPAGE_BOOK:
+                case MOD_BOOKING_BO_PREPAGE_BOOK:
                     $prepages['book'] = $newclass;
                     break;
-                case BO_PREPAGE_PREBOOK:
+                case MOD_BOOKING_BO_PREPAGE_PREBOOK:
                     $prepages['pre'][] = $newclass;
                     break;
-                case BO_PREPAGE_POSTBOOK:
+                case MOD_BOOKING_BO_PREPAGE_POSTBOOK:
                     $prepages['post'][] = $newclass;
                     break;
             }

@@ -25,6 +25,7 @@
 namespace mod_booking\output;
 
 use context_system;
+use mod_booking\booking_answers;
 use moodle_url;
 use renderer_base;
 use renderable;
@@ -46,6 +47,9 @@ class page_allteachers implements renderable, templatable {
 
     /**
      * In the constructor, we gather all the data we need and store it in the data property.
+     *
+     * @param array $teacherids
+     *
      */
     public function __construct(array $teacherids) {
         global $DB;
@@ -59,11 +63,13 @@ class page_allteachers implements renderable, templatable {
     }
 
     /**
+     * Export for template.
+     *
      * @param renderer_base $output
      * @return array
      */
     public function export_for_template(renderer_base $output) {
-        global $PAGE;
+        global $PAGE, $USER, $CFG;
 
         $returnarray = [];
 
@@ -89,7 +95,7 @@ class page_allteachers implements renderable, templatable {
                 'firstname' => $teacher->firstname,
                 'lastname' => $teacher->lastname,
                 'orderletter' => substr($teacher->lastname, 0, 1), // First letter of the teacher's last name.
-                'description' => format_text($teacher->description, $teacher->descriptionformat)
+                'description' => format_text($teacher->description, $teacher->descriptionformat),
             ];
 
             if ($teacher->picture) {
@@ -108,13 +114,31 @@ class page_allteachers implements renderable, templatable {
 
             // If the user has set to hide e-mails, we won't show them.
             // However, a site admin will always see e-mail addresses.
+            // If the plugin setting to show all teacher e-mails (teachersshowemails) is turned on...
+            // ... then teacher e-mails will always be shown to anyone.
             if (!empty($teacher->email) &&
-                ($teacher->maildisplay == 1 || has_capability('mod/booking:updatebooking', $context))) {
+                ($teacher->maildisplay == 1 ||
+                    has_capability('mod/booking:updatebooking', $context) ||
+                    get_config('booking', 'teachersshowemails') ||
+                    (get_config('booking', 'bookedteachersshowemails')
+                        && (booking_answers::number_actively_booked($USER->id, $teacher->id) > 0))
+                )) {
                 $teacherarr['email'] = $teacher->email;
             }
 
-            if (page_teacher::teacher_messaging_is_possible($teacher->id)) {
-                $teacherarr['messagingispossible'] = true;
+            if (!empty($CFG->messaging)) {
+                if (page_teacher::teacher_messaging_is_possible($teacher->id) ||
+                    get_config('booking', 'alwaysenablemessaging')
+                ) {
+                    $teacherarr['messagingispossible'] = true;
+                }
+            } else {
+                $teacherarr['messagesdeactivated'] = true;
+            }
+
+            if (has_capability('mod/booking:editteacherdescription', context_system::instance())) {
+                $url = new moodle_url('/user/editadvanced.php', ['id' => $teacher->id]);
+                $teacherarr['profileediturl'] = $url->out(false);
             }
 
             $link = new moodle_url('/mod/booking/teacher.php', ['teacherid' => $teacher->id]);

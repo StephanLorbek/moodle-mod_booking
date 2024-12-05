@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-
 /**
  * The bookingoption_created event.
  *
@@ -34,22 +33,46 @@ namespace mod_booking\event;
  */
 class bookingoption_created extends \core\event\base {
 
+    /**
+     * Init
+     *
+     * @return void
+     *
+     */
     protected function init() {
         $this->data['crud'] = 'c';
         $this->data['edulevel'] = self::LEVEL_TEACHING;
         $this->data['objecttable'] = 'booking_options';
     }
 
+    /**
+     * Get name
+     *
+     * @return string
+     *
+     */
     public static function get_name() {
-        return get_string('bookingoption_created', 'booking');
+        return get_string('bookingoptioncreated', 'booking');
     }
 
+    /**
+     * Get description
+     *
+     * @return string
+     *
+     */
     public function get_description() {
         return "User with id '{$this->userid}' created 'booking option' with id '{$this->objectid}'.";
     }
 
+    /**
+     * Get_url
+     *
+     * @return \moodle_url
+     *
+     */
     public function get_url() {
         return new \moodle_url('/mod/booking/report.php',
-                array('id' => $this->contextinstanceid, 'optionid' => $this->objectid));
+                ['id' => $this->contextinstanceid, 'optionid' => $this->objectid]);
     }
 }

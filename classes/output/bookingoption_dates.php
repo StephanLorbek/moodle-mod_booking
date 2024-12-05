@@ -25,7 +25,7 @@
 
 namespace mod_booking\output;
 
-use mod_booking\dates_handler;
+use mod_booking\option\dates_handler;
 use renderer_base;
 use renderable;
 use templatable;
@@ -39,6 +39,9 @@ use templatable;
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class bookingoption_dates implements renderable, templatable {
+
+    /** @var array of the users booked for this option key userid */
+    public array $dates = [];
 
     /**
      * Constructor
@@ -57,8 +60,8 @@ class bookingoption_dates implements renderable, templatable {
      */
     public function export_for_template(renderer_base $output) {
 
-        return array(
-            'dates' => $this->dates
-        );
+        return [
+            'dates' => $this->dates,
+        ];
     }
 }

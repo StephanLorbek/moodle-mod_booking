@@ -25,13 +25,15 @@
 namespace mod_booking\output;
 
 use context_module;
+use context_system;
 use html_writer;
-use mod_booking\bo_availability\bo_info;
 use mod_booking\booking;
 use mod_booking\booking_answers;
 use mod_booking\booking_bookit;
+use mod_booking\booking_context_helper;
 use mod_booking\booking_option;
-use mod_booking\dates_handler;
+use mod_booking\local\modechecker;
+use mod_booking\option\dates_handler;
 use mod_booking\price;
 use mod_booking\singleton_service;
 use moodle_url;
@@ -48,6 +50,8 @@ use templatable;
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class bookingoption_description implements renderable, templatable {
+    /** @var int $optionid optionid */
+    private $optionid = null;
 
     /** @var string $identifier unique identifier of the booking option */
     private $identifier = null;
@@ -62,7 +66,7 @@ class bookingoption_description implements renderable, templatable {
     private $modalcounter = null;
 
     /** @var bool $invisible is the booking option invisible to normal users? */
-    private $invisible = null;
+    public $invisible = null;
 
     /** @var string $annotation internal annotation */
     private $annotation = null;
@@ -76,8 +80,17 @@ class bookingoption_description implements renderable, templatable {
     /** @var string $statusdescription depending on booking status */
     private $statusdescription = null;
 
+    /** @var string $attachments HTML for attached files as links */
+    private $attachments = null;
+
     /** @var string $imageurl URL of an uploaded image for the option */
     private $imageurl = null;
+
+    /** @var string $editurl URL to edit the option */
+    private $editurl = null;
+
+    /** @var string $returnurl URL to edit the option */
+    public $returnurl = '';
 
     /** @var string $location as saved in db */
     private $location = null;
@@ -91,11 +104,17 @@ class bookingoption_description implements renderable, templatable {
     /** @var string $duration is saved in db as seconds and will be formatted in this class */
     private $duration = null;
 
+    /** @var string $timeremaining */
+    private $timeremaining = null;
+
     /** @var string $booknowbutton as saved in db in minutes */
     private $booknowbutton = null;
 
     /** @var array $dates as saved in db in minutes */
     private $dates = [];
+
+    /** @var bool $datesexist flag true if dates exist, else null (not false!) */
+    private $datesexist = null;
 
     /** @var array $teachers by names */
     private $teachers = [];
@@ -139,26 +158,47 @@ class bookingoption_description implements renderable, templatable {
     /** @var string $manageresponsesurl */
     private $manageresponsesurl = null;
 
+    /** @var stdClass $responsiblecontactuser */
+    private $responsiblecontactuser = null;
+
+    /** @var string $bookingopeningtime */
+    private $bookingopeningtime = '';
+
+    /** @var string $bookingclosingtime */
+    private $bookingclosingtime = '';
+
+    /** @var bool $selflearningcourse */
+    private $selflearningcourse = null;
+
+    /** @var bool $canstillbecancelled */
+    private $canstillbecancelled = null;
+
+    /** @var string $canceluntil */
+    private $canceluntil = null;
+
     /**
      * Constructor.
+     *
      * @param int $optionid
-     * @param null $bookingevent
+     * @param object|null $bookingevent
      * @param int $descriptionparam
      * @param bool $withcustomfields
+     * @param bool|null $forbookeduser
+     * @param object|null $user
+     * @param bool $ashtml
+     *
      */
     public function __construct(
-            int $optionid,
-            $bookingevent = null,
-            int $descriptionparam = DESCRIPTION_WEBSITE, // Default.
-            bool $withcustomfields = true,
-            bool $forbookeduser = null,
-            object $user = null) {
+        int $optionid,
+        $bookingevent = null,
+        int $descriptionparam = MOD_BOOKING_DESCRIPTION_WEBSITE,
+        bool $withcustomfields = true,
+        ?bool $forbookeduser = null,
+        ?object $user = null,
+        $ashtml = false
+    ) {
 
         global $CFG, $PAGE, $USER;
-
-        // Performance: Last param is set to true so users won't be retrieved from DB.
-        // phpcs:ignore Squiz.PHP.CommentedOutCode.Found,moodle.Commenting.InlineComment.NotCapital
-        // $bookingoption = new booking_option($booking->cm->id, $optionid, [], 0, 0, true);
 
         // Booking answers class uses caching.
         $settings = singleton_service::get_instance_of_booking_option_settings($optionid);
@@ -174,15 +214,18 @@ class bookingoption_description implements renderable, templatable {
         so the user status of the current USER is not enough.
         But we use it if nothing else is specified. */
         if ($forbookeduser === null) {
-            if ($bookinganswers->user_status($user->id) == STATUSPARAM_BOOKED) {
+            if ($bookinganswers->user_status($user->id) == MOD_BOOKING_STATUSPARAM_BOOKED) {
                 $forbookeduser = true;
             } else {
                 $forbookeduser = false;
             }
         }
 
+        // We store the optionid.
+        $this->optionid = $optionid;
+
         // These fields can be gathered directly from settings.
-        $this->title = $settings->text;
+        $this->title = $settings->get_title_with_prefix();
 
         // Prefix to be shown before title.
         $this->titleprefix = $settings->titleprefix;
@@ -201,27 +244,59 @@ class bookingoption_description implements renderable, templatable {
         // If there is an entity, we show it instead of the location field.
         if (!empty($settings->entity)) {
             $entityurl = new moodle_url('/local/entities/view.php', ['id' => $settings->entity['id']]);
-            $entityfullname = $settings->entity['name'];
-            if (!empty($settings->entity['shortname'])) {
-                $entityfullname .= " (" . $settings->entity['shortname'] . ")";
+
+            if (!empty($settings->entity['parentname'])) {
+                $nametobeshown = $settings->entity['parentname'] . " (" . $settings->entity['name'] . ")";
+            } else {
+                $nametobeshown = $settings->entity['name'];
             }
-            $this->location = html_writer::tag('a', $entityfullname, ['href' => $entityurl->out(false)]);
+            $this->location = html_writer::tag('a', $nametobeshown, ['href' => $entityurl->out(false)]);
         } else {
             $this->location = $settings->location;
         }
+
         $this->address = $settings->address;
         $this->institution = $settings->institution;
 
         // There can be more than one modal, therefore we use the id of this record.
         $this->modalcounter = $settings->id;
 
-        // Format the duration correctly.
-        $seconds = $settings->duration;
-        $minutes = $seconds / 60;
-        $d = floor ($minutes / 1440);
-        $h = floor (($minutes - $d * 1440) / 60);
-        $m = $minutes - ($d * 1440) - ($h * 60);
-        $this->duration = "{$d} " . get_string("days") . "  {$h} " . get_string("hours") . "  {$m} " . get_string("minutes");
+        // Check if it's a self-learning course. There's a JSON flag for this.
+        if (!empty($settings->selflearningcourse)) {
+            $this->selflearningcourse = true;
+            // Format the duration correctly.
+            $this->duration = format_time($settings->duration);
+
+            $ba = singleton_service::get_instance_of_booking_answers($settings);
+            $buyforuser = price::return_user_to_buy_for();
+            if (isset($ba->usersonlist[$buyforuser->id])) {
+                $timebooked = $ba->usersonlist[$buyforuser->id]->timecreated;
+                $timeremainingsec = $timebooked + $settings->duration - time();
+                $this->timeremaining = format_time($timeremainingsec);
+            }
+        }
+
+        // Show info until when the booking option can be cancelled.
+        // If cancelling was disabled in the booking option or for the whole instance...
+        // ...then we do not show the cancel until info.
+        if (booking_option::get_value_of_json_by_key($optionid, 'disablecancel')
+            || booking::get_value_of_json_by_key($settings->bookingid, 'disablecancel')) {
+            $this->canceluntil = null;
+        } else {
+            // Check if the option has its own canceluntil date.
+            $canceluntiltimestamp = booking_option::get_value_of_json_by_key($optionid, 'canceluntil');
+            if (!empty($canceluntiltimestamp)) {
+                $this->canceluntil = userdate($canceluntiltimestamp, get_string('strftimedatetime', 'langconfig'));
+            } else {
+                $canceluntiltimestamp = booking_option::return_cancel_until_date($optionid);
+                if (!empty($canceluntiltimestamp)) {
+                    $this->canceluntil = userdate($canceluntiltimestamp, get_string('strftimedatetime', 'langconfig'));
+                }
+            }
+            if (!empty($canceluntiltimestamp) && ($canceluntiltimestamp > time())) {
+                $this->canstillbecancelled = true;
+            }
+        }
 
         // Datestring for date series and calculation of educational unit length.
         $this->dayofweektime = $settings->dayofweektime;
@@ -236,18 +311,31 @@ class bookingoption_description implements renderable, templatable {
         // We need to pop out the first value which is by itself another array containing the information we need.
         $this->bookinginformation = array_pop($fullbookinginformation);
 
-        $context = context_module::instance($cmid);
-        if (has_capability('mod/booking:updatebooking', $context) ||
-             has_capability('mod/booking:addeditownoption', $context)) {
+        $syscontext = context_system::instance();
+        $modcontext = context_module::instance($cmid);
+        $isteacher = booking_check_if_teacher($optionid);
+        if (
+            has_capability('mod/booking:updatebooking', $modcontext)
+            || has_capability('mod/booking:updatebooking', $syscontext)
+            || has_capability('mod/booking:viewreports', $syscontext)
+            || (has_capability('mod/booking:addeditownoption', $modcontext) && $isteacher)
+            || (has_capability('mod/booking:addeditownoption', $syscontext) && $isteacher)
+        ) {
             $this->showmanageresponses = true;
 
             // Add a link to redirect to the booking option.
-            $link = new moodle_url($CFG->wwwroot . '/mod/booking/report.php', array(
+            $link = new moodle_url($CFG->wwwroot . '/mod/booking/report.php', [
                 'id' => $cmid,
-                'optionid' => $optionid
-            ));
+                'optionid' => $optionid,
+            ]);
             // Use html_entity_decode to convert "&amp;" to a simple "&" character.
-            $this->manageresponsesurl = html_entity_decode($link->out());
+            if ($CFG->version >= 2023042400) {
+                // Moodle 4.2 needs second param.
+                $this->manageresponsesurl = html_entity_decode($link->out(), ENT_QUOTES);
+            } else {
+                // Moodle 4.1 and older.
+                $this->manageresponsesurl = html_entity_decode($link->out(), ENT_COMPAT);
+            }
         }
 
         // We need this to render a link to manage bookings in the template.
@@ -258,39 +346,94 @@ class bookingoption_description implements renderable, templatable {
             }
         }
 
+        // With shortcodes & webservice we might not have a valid context object.
+        booking_context_helper::fix_booking_page_context($PAGE, $cmid);
+
         // Description from booking option settings formatted as HTML.
-        // When we call this via webservice, we don't have a context, this throws an error.
-        // It's no use passing the context object either.
-        if (!isset($PAGE->context)) {
-            $PAGE->set_context(context_module::instance($cmid));
-        }
-        $this->description = format_text($settings->description, FORMAT_HTML);
+        $this->description = $settings->description;
 
         // Do the same for internal annotation.
-        $this->annotation = format_text($settings->annotation, FORMAT_HTML);
+        $this->annotation = $settings->annotation;
 
         // Currently, this will only get the description for the current user.
         $this->statusdescription = $bookingoption->get_text_depending_on_status($bookinganswers);
 
+        // Attachments.
+        $this->attachments = booking_option::render_attachments($optionid, 'optionview-bookingoption-attachments mb-3');
+
         // Every date will be an array of datestring and customfields.
         // But customfields will only be shown if we show booking option information inline.
 
-        $this->dates = $bookingoption->return_array_of_sessions($bookingevent,
-                $descriptionparam, $withcustomfields, $forbookeduser);
+        $this->dates = $bookingoption->return_array_of_sessions(
+            $bookingevent,
+            $descriptionparam,
+            $withcustomfields,
+            $forbookeduser,
+            $ashtml
+        );
 
-        $teachers = $settings->teachers;
-
-        $teachernames = [];
-        foreach ($teachers as $teacher) {
-            $teachernames[] = "$teacher->firstname $teacher->lastname";
+        if (!empty($this->dates)) {
+            $this->datesexist = true;
         }
-        $this->teachers = $teachernames;
+
+        $colteacher = new col_teacher($optionid, $settings);
+        $this->teachers = $colteacher->teachers;
+
+        // User object of the responsible contact.
+        $this->responsiblecontactuser = $settings->responsiblecontactuser ?? null;
+        if (!empty($this->responsiblecontactuser)) {
+            $isteacher = false;
+            // For teachers of this course, link to teacherpage instead of user profile.
+            foreach ($settings->teachers as $teacher) {
+                if ($this->responsiblecontactuser->id == $teacher->userid) {
+                    $isteacher = true;
+                }
+            }
+            if ($isteacher) {
+                $this->responsiblecontactuser->link = new moodle_url(
+                    '/mod/booking/teacher.php',
+                    ['teacherid' => $settings->responsiblecontact]
+                );
+            } else {
+                $this->responsiblecontactuser->link = new moodle_url(
+                    '/user/profile.php',
+                    ['id' => $this->responsiblecontactuser->id]
+                );
+            }
+        }
+
+        if (empty($settings->bookingopeningtime)) {
+            $this->bookingopeningtime = null;
+        } else {
+            switch (current_language()) {
+                case 'de':
+                    $this->bookingopeningtime = date('d.m.Y, H:i', $settings->bookingopeningtime);
+                    break;
+                default:
+                    $this->bookingopeningtime = date('M d, Y, H:i', $settings->bookingopeningtime);
+                    break;
+            }
+        }
+
+        if (empty($settings->bookingclosingtime)) {
+            $this->bookingclosingtime = null;
+        } else {
+            switch (current_language()) {
+                case 'de':
+                    $this->bookingclosingtime = date('d.m.Y, H:i', $settings->bookingclosingtime);
+                    break;
+                default:
+                    $this->bookingclosingtime = date('M d, Y, H:i', $settings->bookingclosingtime);
+                    break;
+            }
+        }
 
         if (isset($settings->customfields)) {
             $this->customfields = $settings->customfields;
         }
 
         // Add price.
+        // phpcs:ignore moodle.Commenting.TodoComment.MissingInfoInline
         // TODO: Currently this will only use the logged in $USER, this won't work for the cashier use case!
         $priceitem = price::get_price('option', $optionid, $user);
         if (!empty($priceitem)) {
@@ -311,40 +454,69 @@ class bookingoption_description implements renderable, templatable {
         // Manual factor to be applied to price calculation with formula.
         $this->priceformulamultiply = $settings->priceformulamultiply;
 
-        $baseurl = $CFG->wwwroot;
-        $moodleurl = new \moodle_url($baseurl . '/mod/booking/view.php', array(
-            'id' => $cmid,
-            'optionid' => $settings->id,
-            'whichview' => 'showonlyone'
-        ));
+        if (!modechecker::is_ajax_or_webservice_request()) {
+            $returnurl = $PAGE->url->out();
+        } else {
+            $returnurl = '/';
+        }
+
+        // The current page is not /mod/booking/optionview.php.
+        $moodleurl = new moodle_url("/mod/booking/optionview.php", [
+            "optionid" => (int)$settings->id,
+            "cmid" => (int)$cmid,
+            "userid" => (int)$user->id,
+            'returnto' => 'url',
+            'returnurl' => $returnurl,
+        ]);
+
+        // Set the returnurl to navigate back to after form is saved.
+        $viewphpurl = new moodle_url('/mod/booking/view.php', ['id' => $cmid]);
+        $returnurl = $viewphpurl->out();
+
+        if (
+            has_capability('mod/booking:updatebooking', $modcontext)
+            || (has_capability('mod/booking:addeditownoption', $modcontext) && $isteacher)
+            || (has_capability('mod/booking:addeditownoption', $syscontext) && $isteacher)
+        ) {
+            // The current page is not /mod/booking/optionview.php.
+            $editurl = new moodle_url("/mod/booking/editoptions.php", [
+                "optionid" => (int)$settings->id,
+                "id" => (int)$cmid,
+                'returnto' => 'url',
+                'returnurl' => $returnurl,
+            ]);
+
+            $this->editurl = $editurl->out(false);
+        }
 
         switch ($descriptionparam) {
-            case DESCRIPTION_WEBSITE:
+            case MOD_BOOKING_DESCRIPTION_WEBSITE:
                 if ($forbookeduser) {
                     // If it is for booked user, we show a short info text that the option is already booked.
                     $this->booknowbutton = get_string('infoalreadybooked', 'booking');
-                } else if ($bookinganswers->user_status($user->id) == STATUSPARAM_WAITINGLIST) {
+                } else if ($bookinganswers->user_status($user->id) == MOD_BOOKING_STATUSPARAM_WAITINGLIST) {
                     // If onwaitinglist is 1, we show a short info text that the user is on the waiting list.
                     // Currently this is only working for the current USER.
                     $this->booknowbutton = get_string('infowaitinglist', 'booking');
                 }
                 break;
 
-            case DESCRIPTION_CALENDAR:
+            case MOD_BOOKING_DESCRIPTION_CALENDAR:
                 $encodedlink = booking::encode_moodle_url($moodleurl);
                 $this->booknowbutton = "<a href=$encodedlink class='btn btn-primary'>"
                         . get_string('gotobookingoption', 'booking')
                         . "</a>";
-                // TODO: We would need an event tracking status changes between notbooked, iambooked and onwaitinglist...
-                // TODO: ...in order to update the event table accordingly.
+                // phpcs:ignore moodle.Commenting.TodoComment.MissingInfoInline
+                /* TODO: We would need an event tracking status changes between notbooked, iambooked and onwaitinglist...
+                TODO: ...in order to update the event table accordingly. */
                 break;
 
-            case DESCRIPTION_ICAL:
+            case MOD_BOOKING_DESCRIPTION_ICAL:
                 $this->booknowbutton = get_string('gotobookingoption', 'booking') . ': '
                     .  $moodleurl->out(false);
                 break;
 
-            case DESCRIPTION_MAIL:
+            case MOD_BOOKING_DESCRIPTION_MAIL:
                 // The link should be clickable in mails (placeholder {bookingdetails}).
                 $this->booknowbutton = get_string('gotobookingoption', 'booking') . ': ' .
                     '<a href = "' . $moodleurl . '" target = "_blank">' .
@@ -352,9 +524,11 @@ class bookingoption_description implements renderable, templatable {
                     '</a>';
                 break;
 
-            case DESCRIPTION_OPTIONVIEW:
+            case MOD_BOOKING_DESCRIPTION_OPTIONVIEW:
                 // Get the availability information for this booking option.
-                // boinfo contains availability information, description, visibility information etc.
+
+                // Add availability info texts to $bookinginformation.
+                booking_answers::add_availability_info_texts_to_booking_information($this->bookinginformation);
 
                 // We set usertobuyfor here for better performance.
                 $this->usertobuyfor = price::return_user_to_buy_for();
@@ -366,6 +540,8 @@ class bookingoption_description implements renderable, templatable {
     }
 
     /**
+     * Export for template.
+     *
      * @param renderer_base $output
      * @return array
      */
@@ -378,44 +554,71 @@ class bookingoption_description implements renderable, templatable {
      * @return array
      */
     public function get_returnarray(): array {
-        $returnarray = array(
-            'title' => $this->title,
+        $returnarray = [
+            'title' => format_string($this->title),
             'titleprefix' => $this->titleprefix,
             'invisible' => $this->invisible,
-            'annotation' => $this->annotation,
+            'annotation' => format_text($this->annotation),
             'identifier' => $this->identifier,
             'modalcounter' => $this->modalcounter,
             'userid' => $this->userid,
-            'description' => $this->description,
+            'description' => format_text($this->description),
+            'attachments' => $this->attachments,
             'statusdescription' => $this->statusdescription,
             'imageurl' => $this->imageurl,
             'location' => $this->location,
             'address' => $this->address,
             'institution' => $this->institution,
+            'selflearningcourse' => $this->selflearningcourse,
             'duration' => $this->duration,
             'dates' => $this->dates,
+            'datesexist' => $this->datesexist,
             'booknowbutton' => $this->booknowbutton,
             'teachers' => $this->teachers,
+            'responsiblecontactuser' => $this->responsiblecontactuser,
             'price' => $this->price,
             'priceformulaadd' => $this->priceformulaadd,
             'priceformulamultiply' => $this->priceformulamultiply,
             'currency' => $this->currency,
-            'pricecategoryname' => $this->pricecategoryname,
+            'pricecategoryname' => format_string($this->pricecategoryname),
             'dayofweektime' => $this->dayofweektime,
             'bookinginformation' => $this->bookinginformation,
             'bookitsection' => $this->bookitsection,
-        );
+            'bookingopeningtime' => $this->bookingopeningtime,
+            'bookingclosingtime' => $this->bookingclosingtime,
+            'editurl' => !empty($this->editurl) ? $this->editurl : false,
+            'returnurl' => !empty($this->returnurl) ? $this->returnurl : false,
+            'canceluntil' => $this->canceluntil,
+            'canstillbecancelled' => $this->canstillbecancelled,
+        ];
+
+        if (!empty($this->timeremaining)) {
+            $returnarray['timeremaining'] = $this->timeremaining;
+        }
 
         if (!empty($this->unitstring)) {
             $returnarray['unitstring'] = $this->unitstring;
         }
+
+        $settings = singleton_service::get_instance_of_booking_option_settings($this->optionid);
 
         // We return all the customfields of the option.
         // But we make sure, the shortname of a customfield does not conflict with an existing key.
         if ($this->customfields) {
             foreach ($this->customfields as $key => $value) {
                 if (!isset($returnarray[$key])) {
-                    $returnarray[$key] = is_array($value) ? reset($value) : $value;
+                    $printvalue = is_array($value) ? implode(',', $value) : $value;
+
+                    $type = $settings->customfieldsfortemplates[$key]['type'];
+
+                    switch ($type) {
+                        case 'textarea':
+                            $returnarray[$key] = format_text($printvalue);
+                            break;
+                        default:
+                            $returnarray[$key] = format_string($printvalue);
+                            break;
+                    }
                 }
             }
         }

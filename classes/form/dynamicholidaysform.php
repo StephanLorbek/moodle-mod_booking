@@ -30,6 +30,7 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once("$CFG->libdir/formslib.php");
 
+use cache_helper;
 use context;
 use context_system;
 use core_form\dynamic_form;
@@ -73,7 +74,7 @@ class dynamicholidaysform extends dynamic_form {
         if (!empty($data->holidaystart) && is_array($data->holidaystart)) {
 
             foreach ($data->holidaystart as $idx => $holidaystart) {
-                $holiday = new stdClass;
+                $holiday = new stdClass();
                 $holiday->id = $data->holidayid[$idx];
                 if (!empty($data->holidayname[$idx])) {
                     $holiday->name = trim($data->holidayname[$idx]);
@@ -100,7 +101,7 @@ class dynamicholidaysform extends dynamic_form {
     public function set_data_for_dynamic_submission(): void {
         global $DB;
 
-        $data = new stdClass;
+        $data = new stdClass();
 
         if ($existingholidays = $DB->get_records_sql("SELECT * FROM {booking_holidays} ORDER BY startdate DESC")) {
             $data->holidays = count($existingholidays);
@@ -151,11 +152,11 @@ class dynamicholidaysform extends dynamic_form {
         foreach ($holidaysarray as $holiday) {
 
             // If it's a new holiday id: insert.
-            if (!in_array($holiday->id, $existingholidayids)) {
+            if (!in_array($holiday->id, array_keys($existingholidays))) {
                 $DB->insert_record('booking_holidays', $holiday);
             } else {
                 // If it's an existing holiday id: update.
-                $existingrecord = $DB->get_record('booking_holidays', ['id' => $holiday->id]);
+                $existingrecord = $existingholidays[$holiday->id];
                 $holiday->id = $existingrecord->id;
                 $DB->update_record('booking_holidays', $holiday);
             }
@@ -167,6 +168,9 @@ class dynamicholidaysform extends dynamic_form {
                 $DB->delete_records('booking_holidays', ['id' => $existingholidayid]);
             }
         }
+
+        // So we can be sure that we use the right dates.
+        cache_helper::purge_by_event('setbacksemesters');
 
         return $this->get_data();
     }
@@ -195,7 +199,7 @@ class dynamicholidaysform extends dynamic_form {
         // Checkbox for end date.
         $repeatedholidays[] = $mform->createElement('advcheckbox', 'holidayendactive',
             get_string('holidayendactive', 'mod_booking'), null, null, [0, 1]);
-        $repeateloptions['holidayend']['hideif'] = array('holidayendactive', 'eq', 0);
+        $repeateloptions['holidayend']['hideif'] = ['holidayendactive', 'eq', 0];
 
         // Holiday end date.
         $repeatedholidays[] = $mform->createElement('date_selector', 'holidayend', get_string('holidayend', 'mod_booking'));
@@ -210,9 +214,7 @@ class dynamicholidaysform extends dynamic_form {
         $repeatedholidays[] = $mform->createElement('html', '<hr/>');
 
         $numberofholidaystoshow = 1;
-        if ($existingholidays = $DB->get_records('booking_holidays')) {
-            $numberofholidaystoshow = count($existingholidays);
-        }
+        $numberofholidaystoshow = $DB->count_records('booking_holidays') ?? 1;
 
         $this->repeat_elements($repeatedholidays, $numberofholidaystoshow,
             $repeateloptions, 'holidays', 'addholiday', 1, get_string('addholiday', 'mod_booking'), true, 'deleteholiday');

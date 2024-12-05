@@ -14,6 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * Report table to show an overall report of teachers for a specific booking instance.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace mod_booking\table;
 
 defined('MOODLE_INTERNAL') || die();
@@ -23,15 +31,36 @@ global $CFG;
 require_once(__DIR__ . '/../../lib.php');
 require_once($CFG->libdir.'/tablelib.php');
 
-use mod_booking\dates_handler;
+use mod_booking\option\dates_handler;
 use moodle_url;
 use table_sql;
 
 /**
- * Report table to show an overall report
- * of teachers for a specific booking instance.
+ * Class to handle report table to show an overall report of teachers for a specific booking instance.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class teachers_instance_report_table extends table_sql {
+
+    /** @var int $bookingid */
+    public $bookingid;
+
+    /** @var int $cmid */
+    public $cmid;
+
+    /** @var int $unitlength */
+    public $unitlength;
+
+    /** @var string $decimalseparator */
+    public $decimalseparator;
+
+    /** @var string $thousandsseparator */
+    public $thousandsseparator;
+
+    /** @var string $missinghourssql */
+    private $missinghourssql;
 
     /**
      * Constructor
@@ -40,12 +69,32 @@ class teachers_instance_report_table extends table_sql {
      * @param int $cmid course module id of a booking instance
      */
     public function __construct(string $uniqueid, int $bookingid = 0, int $cmid = 0) {
-        parent::__construct($uniqueid);
+        parent::__construct($uniqueid . $bookingid . $cmid);
 
-        global $PAGE;
+        global $DB, $PAGE;
         $this->baseurl = $PAGE->url;
         $this->bookingid = $bookingid;
         $this->cmid = $cmid;
+
+        $this->missinghourssql = "SELECT DISTINCT bod.id optiondateid, bod.bookingid, bod.optionid,
+            bo.titleprefix, bo.text,
+            bod.coursestarttime, bod.courseendtime,
+            bt.userid teacherid, bod.reason
+            FROM {booking_optiondates} bod
+            JOIN {booking_options} bo
+            ON bo.id = bod.optionid
+            JOIN {booking_teachers} bt
+            ON bod.optionid = bt.optionid
+            LEFT JOIN {booking_optiondates_teachers} bodt
+            ON bodt.optiondateid = bod.id
+            WHERE bod.bookingid = :bookingid
+            AND bt.userid = :teacherid
+            GROUP BY bod.id, bod.bookingid, bod.optionid,
+                bo.titleprefix, bo.text,
+                bod.coursestarttime, bod.courseendtime,
+                bt.userid, bod.reason
+            HAVING " . $DB->sql_concat("'-'", $DB->sql_group_concat("bodt.userid", "-"), "'-'")
+                . " NOT LIKE " . $DB->sql_concat("'%-'", ":teacherid2", "'-%'");
 
         // Get unit length from config (should be something like 45, 50 or 60 minutes).
         if (!$this->unitlength = (int) get_config('booking', 'educationalunitinminutes')) {
@@ -54,12 +103,12 @@ class teachers_instance_report_table extends table_sql {
 
         // For German use "," as comma and " " as thousands separator.
         if (current_language() == "de") {
-            $this->decimal_separator = ",";
-            $this->thousands_separator = " ";
+            $this->decimalseparator = ",";
+            $this->thousandsseparator = " ";
         } else {
             // In all other cases, we use the default separators.
-            $this->decimal_separator = ".";
-            $this->thousands_separator = ",";
+            $this->decimalseparator = ".";
+            $this->thousandsseparator = ",";
         }
 
         // Columns and headers are not defined in constructor, in order to keep things as generic as possible.
@@ -71,8 +120,8 @@ class teachers_instance_report_table extends table_sql {
      *
      * @param object $values Contains object with all the values of record.
      * @return string $link Returns a string containing all teacher names.
-     * @throws moodle_exception
-     * @throws coding_exception
+     * @throws \moodle_exception
+     * @throws \coding_exception
      */
     public function col_lastname($values) {
 
@@ -109,7 +158,7 @@ class teachers_instance_report_table extends table_sql {
      * so that SQL for col_units_courses and for col_sum_units
      * gets called only once.
      *
-     * @param &$values reference to values object.
+     * @param object $values reference to values object.
      */
     private function set_units_courses_records(&$values) {
         global $DB;
@@ -123,7 +172,7 @@ class teachers_instance_report_table extends table_sql {
 
             $params = [
                 'teacherid' => $values->teacherid,
-                'bookingid' => $this->bookingid
+                'bookingid' => $this->bookingid,
             ];
             $values->unitsrecords = $DB->get_records_sql($sql, $params);
         }
@@ -153,18 +202,18 @@ class teachers_instance_report_table extends table_sql {
                     $dayinfo = dates_handler::prepare_day_info($record->dayofweektime);
                     if (!empty($dayinfo['starttime']) && !empty($dayinfo['endtime'])) {
                         $minutes = (strtotime('today ' . $dayinfo['endtime']) - strtotime('today ' . $dayinfo['starttime'])) / 60;
-                        $units = number_format($minutes / $this->unitlength, 1, $this->decimal_separator,
-                            $this->thousands_separator);
+                        $units = number_format($minutes / $this->unitlength, 1, $this->decimalseparator,
+                            $this->thousandsseparator);
                         $unitstringpart = get_string('units', 'mod_booking') . ": $units";
                     } else {
-                        $unitstringpart = get_string('units_unknown', 'mod_booking');
+                        $unitstringpart = get_string('unitsunknown', 'mod_booking');
                     }
                 } else {
-                    $unitstringpart = get_string('units_unknown', 'mod_booking');
+                    $unitstringpart = get_string('unitsunknown', 'mod_booking');
                 }
                 if (!$this->is_downloading()) {
                     $optionurl = new moodle_url('/mod/booking/optiondates_teachers_report.php',
-                        ['id' => $this->cmid, 'optionid' => $record->optionid]);
+                        ['cmid' => $this->cmid, 'optionid' => $record->optionid]);
                     $optionswithdurations .= "<b><a href='$optionurl' target='_blank'>";
                 }
                 if (!empty($record->titleprefix)) {
@@ -230,11 +279,11 @@ class teachers_instance_report_table extends table_sql {
         }
 
         if (!$this->is_downloading()) {
-            $retstring = number_format($sumunits, 1, $this->decimal_separator, $this->thousands_separator) .
+            $retstring = number_format($sumunits, 1, $this->decimalseparator, $this->thousandsseparator) .
                 ' ' . get_string('units', 'mod_booking');
         } else {
             // For download, we do not show the units so it's easier to use with sheet applications like Excel.
-            $retstring = number_format($sumunits, 1, $this->decimal_separator, $this->thousands_separator);
+            $retstring = number_format($sumunits, 1, $this->decimalseparator, $this->thousandsseparator);
         }
 
         return $retstring;
@@ -252,25 +301,12 @@ class teachers_instance_report_table extends table_sql {
     public function col_missinghours($values) {
         global $DB;
 
-        $sql = "SELECT bod.id, bod.bookingid, bod.optionid,
-                    bo.titleprefix, bo.text,
-                    bod.coursestarttime, bod.courseendtime,
-                    bt.userid teacherid, bod.reason
-                FROM {booking_optiondates} bod
-                JOIN {booking_options} bo
-                ON bo.id = bod.optionid
-                JOIN {booking_teachers} bt
-                ON bod.optionid = bt.optionid
-                LEFT JOIN {booking_optiondates_teachers} bodt
-                ON bodt.optiondateid = bod.id
-                WHERE bod.bookingid = :bookingid
-                AND bt.userid = :teacherid
-                AND bod.reason IS NOT NULL
-                AND (bodt.userid IS NULL OR bodt.userid <> bt.userid)";
+        $sql = $this->missinghourssql;
 
         $params = [
             'teacherid' => $values->teacherid,
-            'bookingid' => $this->bookingid
+            'teacherid2' => $values->teacherid,
+            'bookingid' => $this->bookingid,
         ];
 
         $missinghoursstring = '';
@@ -280,7 +316,7 @@ class teachers_instance_report_table extends table_sql {
                 if (!$this->is_downloading()) {
                     $missinghoursstring .= '<hr/>';
                     $optionurl = new moodle_url('/mod/booking/optiondates_teachers_report.php',
-                        ['id' => $this->cmid, 'optionid' => $record->optionid]);
+                        ['cmid' => $this->cmid, 'optionid' => $record->optionid]);
                     $missinghoursstring .= "<a href='$optionurl' target='_blank'>";
                 }
                 if (!empty($record->titleprefix)) {
@@ -291,11 +327,28 @@ class teachers_instance_report_table extends table_sql {
                         '</a> (<b>' . dates_handler::prettify_optiondates_start_end($record->coursestarttime,
                         $record->courseendtime, current_language()) . '</b>) | ' . get_string('reason', 'mod_booking') . ': ' .
                         $record->reason . '<br/>';
+                    if ($deductionrecord = $DB->get_record('booking_odt_deductions', [
+                        'optiondateid' => $record->optiondateid,
+                        'userid' => $values->teacherid,
+                    ])) {
+                        $missinghoursstring .= '<i class="fa fa-minus-square-o" aria-hidden="true"></i>&nbsp;' .
+                            get_string('deduction', 'mod_booking') . ' | ' .
+                            get_string('deductionreason', 'mod_booking') . ': ' .
+                            $deductionrecord->reason . '<br/>';
+                    }
                 } else {
                     $missinghoursstring .= $record->text .
                         ' (' . dates_handler::prettify_optiondates_start_end($record->coursestarttime, $record->courseendtime,
                         current_language()) . ') | ' . get_string('reason', 'mod_booking') . ': ' .
                         $record->reason . PHP_EOL;
+                    if ($deductionrecord = $DB->get_record('booking_odt_deductions', [
+                        'optiondateid' => $record->optiondateid,
+                        'userid' => $values->teacherid,
+                    ])) {
+                        $missinghoursstring .= get_string('deduction', 'mod_booking') . ' | ' .
+                            get_string('deductionreason', 'mod_booking') . ': ' .
+                            $deductionrecord->reason . PHP_EOL;
+                    }
                 }
             }
         }
@@ -324,63 +377,66 @@ class teachers_instance_report_table extends table_sql {
     public function col_substitutions($values) {
         global $DB;
 
-        $sql = "SELECT
-                    bod.id, bod.bookingid, bod.optionid,
-                    bo.titleprefix, bo.text,
-                    bod.coursestarttime, bod.courseendtime,
-                    bodt.userid teacherid, u.firstname, u.lastname, u.email,
-                    bod.reason
-                FROM {booking_optiondates} bod
-                JOIN {booking_options} bo
-                ON bo.id = bod.optionid
-                JOIN {booking_teachers} bt
-                ON bod.optionid = bt.optionid
-                LEFT JOIN {booking_optiondates_teachers} bodt
-                ON bodt.optiondateid = bod.id
-                LEFT JOIN {user} u
-                ON u.id = bodt.userid
-                WHERE bod.bookingid = :bookingid
-                AND bodt.userid IS NOT NULL
-                AND bodt.userid NOT IN (
-                    SELECT userid
-                    FROM {booking_teachers}
-                    WHERE optionid = bt.optionid
-                )
-                AND bodt.userid <> bt.userid
-                AND bt.userid = :teacherid";
+        // We use the same SQL as for missing hours here.
+        $sql = $this->missinghourssql;
 
         $params = [
             'teacherid' => $values->teacherid,
-            'bookingid' => $this->bookingid
+            'teacherid2' => $values->teacherid,
+            'bookingid' => $this->bookingid,
         ];
 
         $substitutionsstring = '';
         if ($records = $DB->get_records_sql($sql, $params)) {
 
             foreach ($records as $record) {
-                if (!$this->is_downloading()) {
-                    $substitutionsstring .= '<hr/>';
-                    $optionurl = new moodle_url('/mod/booking/optiondates_teachers_report.php',
-                        ['id' => $this->cmid, 'optionid' => $record->optionid]);
-                    $substitutionsstring .= "<a href='$optionurl' target='_blank'>";
-                }
-                if (!empty($record->titleprefix)) {
-                    $substitutionsstring .= $record->titleprefix . " - ";
-                }
-                if (!$this->is_downloading()) {
-                    $substitutionsstring .= $record->text .
-                        '</a> (' . dates_handler::prettify_optiondates_start_end($record->coursestarttime,
-                            $record->courseendtime, current_language()) . ')';
-                    $substitutionsstring .= " | <b>$record->firstname $record->lastname</b> ($record->email)";
-                    $substitutionsstring .= ' | ' . get_string('reason', 'mod_booking') . ': ' .
-                        $record->reason . '<br/>';
-                } else {
-                    $substitutionsstring .= $record->text .
-                        ' (' . dates_handler::prettify_optiondates_start_end($record->coursestarttime, $record->courseendtime,
-                        current_language()) . ')';
-                    $substitutionsstring .= " | $record->firstname $record->lastname ($record->email)";
-                    $substitutionsstring .= ' | ' . get_string('reason', 'mod_booking') . ': ' .
-                        $record->reason . PHP_EOL;
+
+                // For each missing hour, we need to find out who substituted it.
+                $substitutionssql =
+                    "SELECT u.id, u.firstname, u.lastname, u.email
+                    FROM {booking_optiondates_teachers} bodt
+                    JOIN {booking_optiondates} bod
+                    ON bod.id = bodt.optiondateid
+                    JOIN {user} u
+                    ON u.id = bodt.userid
+                    WHERE optiondateid = :optiondateid
+                    AND userid NOT IN (
+                        SELECT userid
+                        FROM {booking_teachers} bt
+                        WHERE optionid = bod.optionid
+                    )";
+
+                $substitutionsparams = [
+                    'optiondateid' => $record->optiondateid,
+                ];
+
+                if ($substitutionsrecords = $DB->get_records_sql($substitutionssql, $substitutionsparams)) {
+                    if (!$this->is_downloading()) {
+                        $substitutionsstring .= '<hr/>';
+                        $optionurl = new moodle_url('/mod/booking/optiondates_teachers_report.php',
+                            ['cmid' => $this->cmid, 'optionid' => $record->optionid]);
+                        $substitutionsstring .= "<a href='$optionurl' target='_blank'>";
+                    }
+                    if (!empty($record->titleprefix)) {
+                        $substitutionsstring .= $record->titleprefix . " - ";
+                    }
+                    if (!$this->is_downloading()) {
+                        $substitutionsstring .= $record->text .
+                            '</a> (' . dates_handler::prettify_optiondates_start_end($record->coursestarttime,
+                                $record->courseendtime, current_language()) . ')';
+                        foreach ($substitutionsrecords as $sub) {
+                            $substitutionsstring .= "<br/><b>$sub->firstname $sub->lastname</b> ($sub->email)";
+                        }
+                        $substitutionsstring .= '<br/>';
+                    } else {
+                        $substitutionsstring .= $record->text .
+                            ' (' . dates_handler::prettify_optiondates_start_end($record->coursestarttime, $record->courseendtime,
+                            current_language()) . ')';
+                        foreach ($substitutionsrecords as $sub) {
+                            $substitutionsstring .= "<br/>$sub->firstname $sub->lastname ($sub->email)";
+                        }
+                        $substitutionsstring .= PHP_EOL;
+                    }
                 }
             }
         }

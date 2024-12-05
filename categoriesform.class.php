@@ -26,12 +26,29 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/formslib.php');
 
+/**
+ * Class for handling categories form
+ *
+ * @package mod_booking
+ * @copyright 2022 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 class mod_booking_categories_form extends moodleform {
 
+    /**
+     * Show sub categories.
+     *
+     * @param int $catid
+     * @param string $dashes
+     * @param array $options
+     *
+     * @return array
+     *
+     */
     private function show_sub_categories($catid, $dashes = '', $options = []) {
         global $DB;
         $dashes .= '&nbsp;&nbsp;';
-        $categories = $DB->get_records('booking_category', array('cid' => $catid));
+        $categories = $DB->get_records('booking_category', ['cid' => $catid]);
         if (count((array) $categories) > 0) {
             foreach ($categories as $category) {
                 $options[$category->id] = $dashes . $category->name;
@@ -41,13 +58,19 @@ class mod_booking_categories_form extends moodleform {
         return $options;
     }
 
+    /**
+     *
+     * {@inheritDoc}
+     * @see moodleform::definition()
+     *
+     */
     public function definition() {
         global $DB, $COURSE;
 
         // Get all root categories.
         $categories = $DB->get_records('booking_category', ['course' => $COURSE->id, 'cid' => 0]);
 
-        $options = array(0 => get_string('rootcategory', 'mod_booking'));
+        $options = [0 => get_string('rootcategory', 'mod_booking')];
 
         foreach ($categories as $category) {
             $options[$category->id] = $category->name;
@@ -59,7 +82,7 @@ class mod_booking_categories_form extends moodleform {
         $mform->addElement('header', 'general', get_string('general', 'form'));
 
         $mform->addElement('text', 'name', get_string('categoryname', 'booking'),
-                array('size' => '64'));
+                ['size' => '64']);
         $mform->addRule('name', null, 'required', null, 'client');
         $mform->setType('name', PARAM_TEXT);
 

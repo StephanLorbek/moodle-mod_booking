@@ -14,14 +14,28 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * Scheduled task that removes relicts and unnecessary artifacts from the DB.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace mod_booking\task;
+
+use cache_helper;
 
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/booking/lib.php');
 
 /**
- * Scheduled task that removes relicts and unnecessary artifacts from the DB.
+ * Class to handle scheduled task that removes relicts and unnecessary artifacts from the DB.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class clean_booking_db extends \core\task\scheduled_task {
 
@@ -31,7 +45,7 @@ class clean_booking_db extends \core\task\scheduled_task {
      * @throws \coding_exception
      */
     public function get_name() {
-        return get_string('task_clean_booking_db', 'mod_booking');
+        return get_string('taskcleanbookingdb', 'mod_booking');
     }
 
     /**
@@ -46,6 +60,7 @@ class clean_booking_db extends \core\task\scheduled_task {
 
         // Remove entries from table "booking_optiondates_teachers" that belong to non-existing options.
         $DB->delete_records_select('booking_optiondates_teachers', "optiondateid NOT IN (SELECT id FROM {booking_optiondates})");
+        cache_helper::purge_by_event('setbackcachedteachersjournal');
 
         // Remove entries from table "booking_teachers" that belong to non-existing options.
         $DB->delete_records_select('booking_teachers',

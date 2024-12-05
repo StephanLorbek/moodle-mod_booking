@@ -49,7 +49,10 @@ class subbookingslist implements renderable, templatable {
     /**
      * Constructor takes the subbookings to render and saves them as array.
      *
+     * @param int $cmid
+     * @param int $optionid
      * @param array $subbookings
+     *
      */
     public function __construct(int $cmid, int $optionid, array $subbookings) {
 
@@ -58,19 +61,26 @@ class subbookingslist implements renderable, templatable {
 
         foreach ($subbookings as $subbooking) {
 
-            $subbooking->name = $subbooking->name;
             // Localize the names.
-            $subbooking->localizedsubbookingname = get_string($subbooking->type, 'mod_booking');
+            $subbooking->localizedsubbookingname = get_string(str_replace("_", "", $subbooking->type), 'mod_booking');
 
             $this->subbookings[] = (array)$subbooking;
         }
     }
 
+    /**
+     * Export for template
+     *
+     * @param renderer_base $output
+     *
+     * @return array
+     *
+     */
     public function export_for_template(renderer_base $output) {
-        return array(
+        return [
                 'cmid' => $this->cmid,
                 'optionid' => $this->optionid,
                 'subbookings' => $this->subbookings,
-        );
+        ];
     }
 }

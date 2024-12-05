@@ -13,6 +13,15 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Handling my bookings page
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/booking/locallib.php');
 
@@ -24,7 +33,7 @@ use mod_booking\mybookings_table;
 $url = new moodle_url('/mod/booking/mybookings.php');
 $PAGE->set_url($url);
 
-$course = $DB->get_record('course', array('id' => SITEID), '*', MUST_EXIST);
+$course = $DB->get_record('course', ['id' => SITEID], '*', MUST_EXIST);
 
 $PAGE->set_context(context_user::instance($USER->id));
 $PAGE->navigation->extend_for_user($USER);
@@ -43,8 +52,8 @@ echo $OUTPUT->box_start();
 
 $table = new mybookings_table('mybookings');
 
-$fields = 'ba.id id, c.id courseid, c.fullname fullname, b.id bookingid, b.name name, bo.text text, bo.id optionid,
-    bo.coursestarttime coursestarttime, bo.courseendtime courseendtime, cm.id cmid';
+$fields = 'ba.id id, c.id courseid, c.fullname fullname, b.id bookingid, b.name AS name, bo.text AS text, bo.id optionid,
+    bo.coursestarttime AS coursestarttime, bo.courseendtime courseendtime, cm.id cmid';
 $from = "{booking_answers} ba
     LEFT JOIN
     {booking_options} bo

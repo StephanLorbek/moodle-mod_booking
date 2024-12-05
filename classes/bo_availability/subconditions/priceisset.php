@@ -50,7 +50,17 @@ require_once($CFG->dirroot . '/mod/booking/lib.php');
 class priceisset implements bo_subcondition {
 
     /** @var int $id Standard Conditions have hardcoded ids. */
-    public $id = BO_COND_PRICEISSET;
+    public $id = MOD_BOOKING_BO_COND_PRICEISSET;
+
+    /**
+     * Get the condition id.
+     *
+     * @return int
+     *
+     */
+    public function get_id(): int {
+        return $this->id;
+    }
 
     /**
      * Needed to see if class can take JSON.
@@ -77,15 +87,15 @@ class priceisset implements bo_subcondition {
      * @param bool $not Set true if we are inverting the condition
      * @return bool True if available
      */
-    public function is_available(booking_option_settings $settings, int $subbookingid, int $userid, $not = false):bool {
+    public function is_available(booking_option_settings $settings, int $subbookingid, int $userid, $not = false): bool {
 
         // This is the return value. Not available to begin with.
         $isavailable = false;
 
         // Only if there is no price on the option, we can return true.
-        $priceitems = price::get_prices_from_cache_or_db('option', $settings->id);
+        $priceitems = price::get_prices_from_cache_or_db('option', $settings->id, $userid);
 
-        if (count($priceitems) == 0) {
+        if (empty($settings->jsonobject->useprice)) {
 
             // Only now we actually check the price on the subbooking.
             $priceitems = price::get_prices_from_cache_or_db('subbooking', $subbookingid);
@@ -113,10 +123,10 @@ class priceisset implements bo_subcondition {
      * (when displaying all information about the activity) and 'student' cases
      * (when displaying only conditions they don't meet).
      *
-     * @param bool $full Set true if this is the 'full information' view
      * @param booking_option_settings $settings Item we're checking
      * @param int $subbookingid
      * @param int $userid User ID to check availability for
+     * @param bool $full Set true if this is the 'full information' view
      * @param bool $not Set true if we are inverting the condition
      * @return array availability and Information string (for admin) about all restrictions on
      *   this item
@@ -130,7 +140,7 @@ class priceisset implements bo_subcondition {
 
         $description = $this->get_description_string($isavailable, $full);
 
-        return [$isavailable, $description, BO_PREPAGE_NONE, BO_BUTTON_MYBUTTON];
+        return [$isavailable, $description, MOD_BOOKING_BO_PREPAGE_NONE, MOD_BOOKING_BO_BUTTON_MYBUTTON];
     }
 
     /**
@@ -154,12 +164,13 @@ class priceisset implements bo_subcondition {
      * @param booking_option_settings $settings
      * @param int $subbookingid
      * @param int $userid
-     * @param boolean $full
-     * @param boolean $not
+     * @param bool $full
+     * @param bool $not
+     * @param bool $fullwidth
      * @return array
      */
     public function render_button(booking_option_settings $settings,
-        int $subbookingid, $userid = 0, $full = false, $not = false): array {
+        int $subbookingid, int $userid=0, bool $full=false, bool $not=false, bool $fullwidth=true): array {
 
         global $USER;
 
@@ -171,6 +182,13 @@ class priceisset implements bo_subcondition {
 
         $data = $settings->return_subbooking_option_information($subbookingid, $user);
 
+        // For subbookings, we have to turn off automatic forwarding to the next page!
+        $data['dataaction'] = 'noforward';
+
+        if ($fullwidth) {
+            $data['fullwidth'] = $fullwidth;
+        }
+
         return ['mod_booking/bookit_price', $data];
     }
 
@@ -179,15 +197,15 @@ class priceisset implements bo_subcondition {
      *
      * @param bool $isavailable
      * @param bool $full
-     * @return void
+     * @return string
      */
     private function get_description_string($isavailable, $full) {
         if ($isavailable) {
-            $description = $full ? get_string('bo_cond_priceisset_full_available', 'mod_booking') :
-                get_string('bo_cond_priceisset_available', 'mod_booking');
+            $description = $full ? get_string('bocondpriceissetfullavailable', 'mod_booking') :
+                get_string('bocondpriceissetavailable', 'mod_booking');
         } else {
-            $description = $full ? get_string('bo_cond_priceisset_full_not_available', 'mod_booking') :
-                get_string('bo_cond_priceisset_not_available', 'mod_booking');
+            $description = $full ? get_string('bocondpriceissetfullnotavailable', 'mod_booking') :
+                get_string('bocondpriceissetnotavailable', 'mod_booking');
         }
         return $description;
     }

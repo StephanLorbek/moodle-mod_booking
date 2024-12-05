@@ -25,6 +25,9 @@
 namespace mod_booking\output;
 
 use context_system;
+use context_module;
+use context_user;
+use mod_booking\booking_answers;
 use mod_booking\singleton_service;
 use moodle_url;
 use renderer_base;
@@ -53,6 +56,10 @@ class page_teacher implements renderable, templatable {
 
     /**
      * In the Constructor, we gather all the data we need ans store it in the data property.
+     *
+     * @param int $teacherid
+     * @return void
+     *
      */
     public function __construct(int $teacherid) {
         global $DB;
@@ -80,14 +87,17 @@ class page_teacher implements renderable, templatable {
     }
 
     /**
+     * Export for template.
+     *
      * @param renderer_base $output
      * @return array
      */
     public function export_for_template(renderer_base $output) {
-        global $PAGE, $CFG;
+        global $PAGE, $CFG, $USER;
 
+        $context = context_system::instance();
         if (!isset($PAGE->context)) {
-            $PAGE->set_context(context_system::instance());
+            $PAGE->set_context($context);
         }
 
         $returnarray = [];
@@ -105,13 +115,38 @@ class page_teacher implements renderable, templatable {
         // Get all booking options where the teacher is teaching and sort them by instance.
         $teacheroptiontables = $this->get_option_tables_for_teacher($this->teacher->id);
 
+        $context = context_user::instance($this->teacher->id, MUST_EXIST);
+        $descriptiontext = file_rewrite_pluginfile_urls(
+            $this->teacher->description,
+            'pluginfile.php',
+            $context->id,
+            'user',
+            'profile',
+            null,
+        );
+
         $returnarray['teacher'] = [
             'teacherid' => $this->teacher->id,
             'firstname' => $this->teacher->firstname,
             'lastname' => $this->teacher->lastname,
-            'description' => format_text($this->teacher->description, $this->teacher->descriptionformat),
-            'optiontables' => $teacheroptiontables
+            'description' => format_text($descriptiontext, $this->teacher->descriptionformat),
+            'optiontables' => $teacheroptiontables,
+            'canedit' => has_capability('mod/booking:editteacherdescription', $context),
         ];
+
+        // If the user has set to hide e-mails, we won't show them.
+        // However, a site admin will always see e-mail addresses.
+        // If the plugin setting to show all teacher e-mails (teachersshowemails) is turned on...
+        // ... then teacher e-mails will always be shown to anyone.
+        if (!empty($this->teacher->email) &&
+            ($this->teacher->maildisplay == 1
+                || has_capability('mod/booking:updatebooking', $context)
+                || get_config('booking', 'teachersshowemails')
+                || (get_config('booking', 'bookedteachersshowemails')
+                    && (booking_answers::number_actively_booked($USER->id, $this->teacher->id) > 0))
+            )) {
+            $returnarray['teacher']['email'] = $this->teacher->email;
+        }
 
         if ($this->teacher->picture) {
             $picture = new \user_picture($this->teacher);
@@ -119,9 +154,12 @@ class page_teacher implements renderable, templatable {
             $imageurl = $picture->get_url($PAGE);
             $returnarray['image'] = $imageurl;
         }
-
-        if (self::teacher_messaging_is_possible($this->teacher->id)) {
-            $returnarray['messagingispossible'] = true;
+        if (!empty($CFG->messaging)) {
+            if (self::teacher_messaging_is_possible($this->teacher->id)) {
+                $returnarray['messagingispossible'] = true;
+            }
+        } else {
+            $returnarray['messagesdeactivated'] = true;
         }
 
         // Add a link to the report of performed teaching units.
@@ -129,6 +167,15 @@ class page_teacher implements renderable, templatable {
         if ((has_capability('mod/booking:updatebooking', $PAGE->context))) {
             $url = new moodle_url('/mod/booking/teacher_performed_units_report.php', ['teacherid' => $this->teacher->id]);
             $returnarray['linktoperformedunitsreport'] = $url->out();
+        }
+        if ((has_capability('mod/booking:seepersonalteacherinformation', $PAGE->context))) {
+            // Add given phonenumbers.
+            if (!empty($this->teacher->phone1)) {
+                $returnarray['teacher']['phones'][] = $this->teacher->phone1;
+            }
+            if (!empty($this->teacher->phone2)) {
+                $returnarray['teacher']['phones'][] = $this->teacher->phone2;
+            }
         }
         // Include wwwroot for links.
         $returnarray['wwwroot'] = $CFG->wwwroot;
@@ -138,46 +185,85 @@ class page_teacher implements renderable, templatable {
     /**
      * Helper function to create wunderbyte_tables for all options of a specific teacher.
      *
-     * @param int userid of a specific teacher
+     * @param int $teacherid userid of a specific teacher
+     * @param int $perpage
      * @return array an array of tables as string
      */
-    private function get_option_tables_for_teacher(int $teacherid, $perpage = 1000) {
+    private function get_option_tables_for_teacher(int $teacherid, $perpage = 100) {
 
-        global $DB;
+        global $DB, $USER;
 
         $teacheroptiontables = [];
 
         $bookingidrecords = $DB->get_records_sql(
-            "SELECT DISTINCT bookingid FROM {booking_teachers} WHERE userid = :teacherid",
+            "SELECT DISTINCT bookingid FROM {booking_teachers} WHERE userid = :teacherid ORDER By bookingid ASC",
             ['teacherid' => $teacherid]
         );
 
         $firsttable = true;
+
+        // This is a special setting for a special project. Only when this project is installed...
+        // ... the set semester will get precedence over all the other ones.
+        if (class_exists('local_musi\observer')) {
+
+            $firstbookingcmid = get_config('local_musi', 'shortcodessetinstance');
+
+            foreach ($bookingidrecords as $key => $bookingidrecord) {
+                $booking = singleton_service::get_instance_of_booking_by_bookingid($bookingidrecord->bookingid);
+                if ($firstbookingcmid == $booking->cmid) {
+                    $record = $bookingidrecord;
+                    unset($bookingidrecords[$key]);
+                    array_unshift($bookingidrecords, $record);
+                }
+            }
+        }
+
         foreach ($bookingidrecords as $bookingidrecord) {
 
             $bookingid = $bookingidrecord->bookingid;
 
             if ($booking = singleton_service::get_instance_of_booking_by_bookingid($bookingid)) {
 
+                // If a booking option is set to invisible, we just wont show the instance right away.
+                // This can not replace the check if the user actually has the rights to see it.
+                $modinfo = get_fast_modinfo($booking->course, $USER->id);
+                $cm = $modinfo->get_cm($booking->cmid);
+
+                if (!$cm->visible) {
+                    continue;
+                }
+
                 // We load only the first table directly, the other ones lazy.
+                $lazy = $firsttable ? false : true;
 
-                $lazy = $firsttable ? '' : ' lazy="1" ';
-
-                $view = new view($booking->cmid);
-                $out = $view->get_rendered_table_for_teacher($teacherid, false, false, false);
+                $view = new view($booking->cmid, 'shownothing', 0, true);
+                $out = $view->get_rendered_table_for_teacher($teacherid, false, false, false, $lazy);
 
                 $class = $firsttable ? 'active show' : '';
                 $firsttable = false;
 
-                $tablename = preg_replace("/[^a-z]/", '', $booking->settings->name);
+                // Keep only lowercaseletters and digits.
+                $tablename = preg_replace("/[^a-z0-9]/", '', strtolower($booking->settings->name));
 
-                $teacheroptiontables[] = [
+                $newtable = [
                     'bookingid' => $bookingid,
                     'bookinginstancename' => $booking->settings->name,
                     'tablename' => $tablename,
                     'table' => $out,
-                    'class' => $class
+                    'class' => $class,
                 ];
+
+                 // Todo: Only show booking options from instance that is available.
+                // Right now, we don't use it. needs a setting.
+                if (1 == 2) {
+                    $context = context_module::instance($booking->cmid);
+                    if (!has_capability('mod/booking:choose', $context)) {
+                        continue;
+                    }
+                }
+
+                $teacheroptiontables[] = $newtable;
+
             }
         }
 
@@ -215,7 +301,7 @@ class page_teacher implements renderable, templatable {
 
         $params = [
             'currentuserid' => $USER->id,
-            'teacherid' => $teacherid
+            'teacherid' => $teacherid,
         ];
 
         if ($commoncourses = $DB->get_records_sql($sql, $params)) {

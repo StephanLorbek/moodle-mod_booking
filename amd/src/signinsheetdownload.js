@@ -28,13 +28,31 @@
  * @since      4.5
  */
 
-define(['jquery'], function($) {
+define([], function() {
     return {
         init: function() {
-            $("#sign_in_sheet_download").on('click', function() {
-                $("#signinsheet").toggle();
-                return false;
-            });
+            const downloadbtn = document.getElementById("sign_in_sheet_download");
+            if (downloadbtn) {
+                downloadbtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const elem = document.getElementById("signinsheet");
+                    if (elem.classList.contains('hidden')) {
+                        elem.classList.remove('hidden');
+                        elem.setAttribute("aria-hidden", "false");
+                    } else {
+                        elem.classList.add('hidden');
+                        elem.setAttribute("aria-hidden", "true");
+                    }
+                });
+            }
+
+            const downloadbtntop = document.getElementById("downloadsigninsheet-top-btn");
+            if (downloadbtntop) {
+                downloadbtntop.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    document.querySelector('button[name="downloadsigninsheet"]').click();
+                });
+            }
         }
     };
 });

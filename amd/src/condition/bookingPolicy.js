@@ -23,7 +23,7 @@ import DynamicForm from 'core_form/dynamicform';
 
 const SELECTOR = {
     FORMCONTAINER: '.condition-bookingpolicy-form',
-    MODALBODY: '.modal-body',
+    PREPAGEBODY: '.prepage-body',
     CONTINUECONTAINER: ' div.prepage-booking-footer .continue-container',
     CONTINUEBUTTON: ' div.prepage-booking-footer .continue-button',
     BOOKINGBUTTON: '[data-area="subbooking"][data-itemid="',
@@ -31,13 +31,30 @@ const SELECTOR = {
 
 /**
  * Init function.
+ * @param {*} elementid
  */
-export async function init() {
+export async function init(elementid) {
 
-    const container = document.querySelector("div.modal.show " + SELECTOR.FORMCONTAINER);
+    // eslint-disable-next-line no-console
+    console.log(elementid);
 
+    let container = document.querySelector("#" + elementid + " " + SELECTOR.FORMCONTAINER);
+
+    // eslint-disable-next-line no-console
+    console.log(elementid, container);
+
+    // If we don't find the container like this, we use the inline form.
     if (!container) {
-        return;
+        const containers = document.querySelectorAll("div.prepage-body " + SELECTOR.FORMCONTAINER);
+        containers.forEach(el => {
+            if (!isHidden(el)) {
+                container = el;
+            }
+        });
+
+        if (!container) {
+            return;
+        }
     }
 
     const id = container.dataset.id;
@@ -47,7 +64,7 @@ export async function init() {
     // We need to render the dynamic form right away, so we can acutally have all the necessary elements present.
     await dynamicForm.load({id: id});
 
-    let continuebutton = container.closest(SELECTOR.MODALBODY).querySelector(SELECTOR.CONTINUEBUTTON);
+    let continuebutton = container.closest(SELECTOR.PREPAGEBODY).querySelector(SELECTOR.CONTINUEBUTTON);
 
     dynamicForm.addEventListener(dynamicForm.events.FORM_SUBMITTED, e => {
         const response = e.detail;
@@ -55,12 +72,15 @@ export async function init() {
         if (response) {
 
             if (!continuebutton) {
-                continuebutton = container.closest(SELECTOR.MODALBODY).querySelector(SELECTOR.CONTINUEBUTTON);
+                continuebutton = container.closest(SELECTOR.PREPAGEBODY).querySelector(SELECTOR.CONTINUEBUTTON);
             }
             if (continuebutton) {
 
                 continuebutton.dataset.blocked = 'false';
                 continuebutton.click();
+
+                // eslint-disable-next-line no-console
+                console.log('just clicked continue', continuebutton);
             }
         }
     });
@@ -77,4 +97,14 @@ export async function init() {
             }
         });
     }
+}
+
+/**
+ * Function to check visibility of element.
+ * @param {*} el
+ * @returns {boolean}
+ */
+function isHidden(el) {
+    var style = window.getComputedStyle(el);
+    return ((style.display === 'none') || (style.visibility === 'hidden'));
 }

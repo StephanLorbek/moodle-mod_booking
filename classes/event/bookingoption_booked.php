@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-
 /**
  * The bookingoption_booked event.
  *
@@ -35,46 +34,55 @@ namespace mod_booking\event;
  */
 class bookingoption_booked extends \core\event\base {
 
+    /**
+     * Init
+     *
+     * @return void
+     *
+     */
     protected function init() {
         $this->data['crud'] = 'c';
         $this->data['edulevel'] = self::LEVEL_PARTICIPATING;
         $this->data['objecttable'] = 'booking_answers';
     }
 
+    /**
+     * Get name
+     *
+     * @return string
+     *
+     */
     public static function get_name() {
-        return get_string('bookingoption_booked', 'booking');
+        return get_string('bookingoptionbooked', 'booking');
     }
 
+    /**
+     * Get description
+     *
+     * @return string
+     *
+     */
     public function get_description() {
+        $data = [
+            'userid' => $this->userid,
+            'relateduserid' => $this->data['relateduserid'],
+            'objectid' => $this->objectid,
+        ];
         if ($this->userid != $this->data['relateduserid']) {
-            return "The user with id {$this->userid} booked the user with id {$this->data['other']['userid']} "
-                . "to the option with id  {$this->objectid}.";
+            return get_string('bookingoptionbookedotheruserdesc', 'mod_booking', $data);
         } else {
-            return "The user with id {$this->userid} booked the booking option with id {$this->objectid}.";
+            return get_string('bookingoptionbookedsameuserdesc', 'mod_booking', $data);
         }
     }
 
+    /**
+     * Get_url
+     *
+     * @return \moodle_url
+     *
+     */
     public function get_url() {
-        return new \moodle_url('/mod/booking/view.php', array('id' => $this->contextinstanceid));
-    }
-
-    public function get_legacy_logdata() {
-        // Override if you are migrating an add_to_log() call.
-        return array($this->courseid, 'booking', 'book', 'choose',
-            'view.php?id=' . $this->contextinstanceid, $this->objectid, $this->contextinstanceid);
-    }
-
-    public static function get_legacy_eventname() {
-        // Override ONLY if you are migrating events_trigger() call.
-        return 'choose';
-    }
-
-    protected function get_legacy_eventdata() {
-        // Override if you migrating events_trigger() call.
-        $data = new \stdClass();
-        $data->id = $this->objectid;
-        $data->userid = $this->relateduserid;
-        return $data;
+        return new \moodle_url('/mod/booking/view.php', ['id' => $this->contextinstanceid]);
     }
 
     /**

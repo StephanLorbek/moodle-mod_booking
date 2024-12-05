@@ -14,6 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * Module booking tests common fuctions
+ *
+ * @package mod_booking
+ * @category test
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Andraž Prinčič {@link https://www.princic.net}
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace mod_booking;
 
 defined('MOODLE_INTERNAL') || die();
@@ -25,14 +35,23 @@ global $CFG;
 
 require_once($CFG->dirroot . '/mod/booking/lib.php');
 
-class lib_test extends advanced_testcase {
+/**
+ * Class to handle module booking tests common fuctions
+ *
+ * @package mod_booking
+ * @category test
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Andraž Prinčič {@link https://www.princic.net}
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+final class lib_test extends advanced_testcase {
 
-    public function setUp():void {
-
-    }
-
-    public function tearDown():void {
-
+    /**
+     * Tests set up.
+     */
+    public function setUp(): void {
+        parent::setUp();
+        $this->resetAfterTest(true);
     }
 
     /**
@@ -42,7 +61,7 @@ class lib_test extends advanced_testcase {
      * @throws \coding_exception
      * @throws \dml_exception
      */
-    public function test_subscribe_teacher_to_booking_option() {
+    public function test_subscribe_teacher_to_booking_option(): void {
 
         global $DB;
 
@@ -53,34 +72,39 @@ class lib_test extends advanced_testcase {
 
         $this->getDataGenerator()->enrol_user($user->id, $course->id);
 
-        $bdata = array('name' => 'Test Booking', 'eventtype' => 'Test event',
-                        'bookedtext' => array('text' => 'text'), 'waitingtext' => array('text' => 'text'),
-                        'notifyemail' => array('text' => 'text'), 'statuschangetext' => array('text' => 'text'),
-                        'deletedtext' => array('text' => 'text'), 'pollurltext' => array('text' => 'text'),
-                        'pollurlteacherstext' => array('text' => 'text'),
-                        'notificationtext' => array('text' => 'text'), 'userleave' => array('text' => 'text'),
-                        'bookingpolicy' => 'bookingpolicy', 'tags' => '', 'course' => $course->id,
-                        'bookingmanager' => $user->username, 'showviews' =>
-                            ['mybooking, myoptions, showall, showactive, myinstitution']);
+        $bdata = ['name' => 'Test Booking', 'eventtype' => 'Test event',
+                    'bookedtext' => ['text' => 'text'], 'waitingtext' => ['text' => 'text'],
+                    'notifyemail' => ['text' => 'text'], 'statuschangetext' => ['text' => 'text'],
+                    'deletedtext' => ['text' => 'text'], 'pollurltext' => ['text' => 'text'],
+                    'pollurlteacherstext' => ['text' => 'text'], 'notificationtext' => ['text' => 'text'],
+                    'userleave' => ['text' => 'text'], 'bookingpolicy' => 'bookingpolicy',
+                    'tags' => '', 'course' => $course->id, 'bookingmanager' => $user->username,
+                    'showviews' => ['showall, showactive, mybooking, myoptions, myinstitution'],
+        ];
 
         $booking = $this->getDataGenerator()->create_module('booking', $bdata);
 
         $cm = get_coursemodule_from_instance('booking', $booking->id);
 
+        $this->setAdminUser();
+
         $record = new stdClass();
         $record->bookingid = $booking->id;
         $record->text = 'Test option';
+        $record->chooseorcreatecourse = 1; // Reqiured.
         $record->courseid = $course->id;
         $record->description = 'Test description';
 
-        $option = self::getDataGenerator()->get_plugin_generator('mod_booking')->create_option(
-                $record);
+        /** @var mod_booking_generator $plugingenerator */
+        $plugingenerator = self::getDataGenerator()->get_plugin_generator('mod_booking');
+        $option = $plugingenerator->create_option($record);
 
-        $group = $this->getDataGenerator()->create_group(array('courseid' => $course->id));
+        $group = $this->getDataGenerator()->create_group(['courseid' => $course->id]);
 
-        subscribe_teacher_to_booking_option($user->id, $option->id, $cm->id, $group->id);
+        $teacherhandler = new teachers_handler($option->id);
+        $teacherhandler->subscribe_teacher_to_booking_option($user->id, $option->id, $cm->id, $group->id);
 
-        $this->assertEquals(1, $DB->count_records('booking_teachers', array('userid' => $user->id, 'optionid' => $option->id)));
+        $this->assertEquals(1, $DB->count_records('booking_teachers', ['userid' => $user->id, 'optionid' => $option->id]));
 
         $this->assertEquals(true, groups_is_member($group->id, $user->id));
 

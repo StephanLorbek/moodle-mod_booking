@@ -41,8 +41,6 @@ $cmid = optional_param('id', 0, PARAM_INT);
 admin_externalpage_setup('modbookingsemesters', '', [],
     new moodle_url('/mod/booking/semesters.php'));
 
-$settingsurl = new moodle_url('/admin/category.php', ['category' => 'modbookingfolder']);
-
 $pageurl = new moodle_url('/mod/booking/semesters.php');
 $PAGE->set_url($pageurl);
 
@@ -74,18 +72,16 @@ $output = $PAGE->get_renderer('mod_booking');
 $data = new semesters_holidays($renderedsemestersform, $renderedholidaysform, $renderedchangesemesterform);
 echo $output->render_semesters_holidays($data);
 
-$existingsemesters = $DB->get_records('booking_semesters');
 $PAGE->requires->js_call_amd(
     'mod_booking/dynamicsemestersform',
     'init',
-    ['[data-region=semestersformcontainer]', dynamicsemestersform::class, $existingsemesters]
+    ['[data-region=semestersformcontainer]', dynamicsemestersform::class]
 );
 
-$existingholidays = $DB->get_records('booking_holidays');
 $PAGE->requires->js_call_amd(
     'mod_booking/dynamicholidaysform',
     'init',
-    ['[data-region=holidaysformcontainer]', dynamicholidaysform::class, $existingholidays]
+    ['[data-region=holidaysformcontainer]', dynamicholidaysform::class]
 );
 
 if ($cmid) {

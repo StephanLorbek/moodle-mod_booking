@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * The mod_booking taecher added event.
  *
@@ -51,9 +52,15 @@ class teacher_removed extends \core\event\base {
      * @return string
      */
     public static function get_name() {
-        return get_string('eventteacher_removed', 'mod_booking');
+        return get_string('eventteacherremoved', 'mod_booking');
     }
 
+    /**
+     * Get description
+     *
+     * @return string
+     *
+     */
     public function get_description() {
         return "The user with id '$this->userid' removed teacher with user id
                 '$this->relateduserid' from the booking option with the option id
@@ -74,7 +81,7 @@ class teacher_removed extends \core\event\base {
         return new moodle_url($CFG->wwwroot . '/mod/booking/view.php', [
             'id' => $optionsettings->cmid,
             'optionid' => $optionid,
-            'whichview' => 'showonlyone'
+            'whichview' => 'showonlyone',
         ]);
     }
 }

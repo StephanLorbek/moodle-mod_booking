@@ -40,6 +40,12 @@ class select_teacher_in_bo implements booking_rule_condition {
     /** @var string $rulename */
     public $conditionname = 'select_teacher_in_bo';
 
+    /** @var string $conditionnamestringid Id of localized string for name of rule condition*/
+    protected $conditionnamestringid = 'selectteacherinbo';
+
+    /** @var string $rulejson a json string for a booking rule */
+    public $rulejson = '';
+
     /**
      * Function to tell if a condition can be combined with a certain booking rule type.
      * @param string $bookingruletype e.g. "rule_daysbefore" or "rule_react_on_event"
@@ -70,26 +76,28 @@ class select_teacher_in_bo implements booking_rule_condition {
      * Only customizable functions need to return their necessary form elements.
      *
      * @param MoodleQuickForm $mform
-     * @param int $optionid
+     * @param ?array $ajaxformdata
      * @return void
      */
-    public function add_condition_to_mform(MoodleQuickForm &$mform, array &$ajaxformdata = null) {
+    public function add_condition_to_mform(MoodleQuickForm &$mform, ?array &$ajaxformdata = null) {
         $mform->addElement('static', 'condition_select_teacher_in_bo', '',
-                get_string('condition_select_teacher_in_bo_desc', 'mod_booking'));
+                get_string('conditionselectteacherinbo_desc', 'mod_booking'));
 
     }
 
     /**
      * Get the name of the rule.
+     *
+     * @param bool $localized
      * @return string the name of the rule
      */
     public function get_name_of_condition($localized = true) {
-        return $localized ? get_string($this->conditionname, 'mod_booking') : $this->conditionname;
+        return $localized ? get_string($this->conditionnamestringid, 'mod_booking') : $this->conditionname;
     }
 
     /**
      * Save the JSON for all sendmail_daysbefore rules defined in form.
-     * @param stdClass &$data form data reference
+     * @param stdClass $data form data reference
      */
     public function save_condition(stdClass &$data) {
         global $DB;
@@ -107,7 +115,7 @@ class select_teacher_in_bo implements booking_rule_condition {
 
     /**
      * Sets the rule defaults when loading the form.
-     * @param stdClass &$data reference to the default values
+     * @param stdClass $data reference to the default values
      * @param stdClass $record a record from booking_rules
      */
     public function set_defaults(stdClass &$data, stdClass $record) {
@@ -124,8 +132,10 @@ class select_teacher_in_bo implements booking_rule_condition {
      */
     public function execute(stdClass &$sql, array &$params) {
 
+        global $DB;
+
         // We pass the restriction to the userid in the params.
-        // If its not 0, we add the restirction.
+        // If its not 0, we add the restriction.
         $anduserid = '';
         if (!empty($params['userid'])) {
             // We cannot use params twice, so we need to use userid2.
@@ -133,8 +143,9 @@ class select_teacher_in_bo implements booking_rule_condition {
             $anduserid = "AND bt.userid = :userid2";
         }
 
+        $concat = $DB->sql_concat("bo.id", "'-'", "bt.userid");
         // We need the hack with uniqueid so we do not lose entries ...as the first column needs to be unique.
-        $sql->select = " CONCAT(bo.id, '-', bt.userid) uniqueid, " . $sql->select;
+        $sql->select = " $concat uniqueid, " . $sql->select;
         $sql->select .= ", bt.userid userid ";
 
         $sql->from .= " JOIN {booking_teachers} bt ON bo.id = bt.optionid ";

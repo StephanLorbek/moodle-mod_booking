@@ -34,7 +34,7 @@ use context;
 use context_module;
 use core_form\dynamic_form;
 use moodle_url;
-use mod_booking\dates_handler;
+use mod_booking\option\dates_handler;
 use stdClass;
 
 /**
@@ -76,7 +76,7 @@ class dynamicoptiondateform extends dynamic_form {
         $optiondateshandler->add_optiondates_for_semesters_to_mform($mform, $loadexistingdates);
 
         // Add submit button to create optiondate series. (Use $this, not $mform for add_action_buttons).
-        $this->add_action_buttons(false, get_string('add_optiondate_series', 'mod_booking'));
+        $this->add_action_buttons(false, get_string('addoptiondateseries', 'mod_booking'));
     }
 
     /**
@@ -169,18 +169,20 @@ class dynamicoptiondateform extends dynamic_form {
         if (!$cmid) {
             $cmid = $this->optional_param('cmid', '', PARAM_RAW);
         }
-        return new moodle_url('/mod/booking/editoptions.php', array('id' => $cmid));
+        return new moodle_url('/mod/booking/editoptions.php', ['id' => $cmid]);
     }
 
     /**
-     * Validate dates.
+     * Dates validation.
      *
-     * {@inheritdoc}
-     * @see moodleform::validation()
+     * @param array $data
+     * @param array $files
+     * @return array
+     *
      */
     public function validation($data, $files) {
 
-        $errors = array();
+        $errors = [];
 
         // Check if the string is valid.
         if (!dates_handler::reoccurring_datestring_is_correct($data['reoccurringdatestring'])) {

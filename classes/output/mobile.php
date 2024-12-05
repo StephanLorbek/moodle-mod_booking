@@ -13,15 +13,31 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Mobile output class for booking
+ *
+ * @package mod_booking
+ * @copyright 2018 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Andraž Prinčič, David Bogner
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace mod_booking\output;
 
 defined('MOODLE_INTERNAL') || die();
 
-use context_module;
 use context;
+use mod_booking\bo_availability\bo_info;
+use mod_booking\bo_availability\conditions\customform;
 use mod_booking\booking;
-use mod_booking\booking_option;
+use mod_booking\booking_bookit;
+use mod_booking\local\mobile\customformstore;
+use mod_booking\local\mobile\mobileformbuilder;
 use mod_booking\places;
+use mod_booking\price;
+use mod_booking\singleton_service;
+use moodle_exception;
 use stdClass;
 
 require_once($CFG->dirroot . '/mod/booking/locallib.php');
@@ -30,10 +46,164 @@ require_once($CFG->dirroot . '/mod/booking/locallib.php');
  * Mobile output class for booking
  *
  * @package mod_booking
- * @copyright 2018 Andraž Prinčič, David Bogner
+ * @copyright 2018 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Andraž Prinčič, David Bogner
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class mobile {
+
+    /**
+     * Returns all my bookings view for mobile app.
+     *
+     * @param array $args Arguments from tool_mobile_get_content WS
+     * @return array HTML, javascript and otherdata
+     */
+    public static function mobile_system_view($args) {
+
+        global $DB, $OUTPUT, $USER;
+
+        $cmid = get_config('booking', 'shortcodessetinstance');
+
+        if (empty($cmid)) {
+            throw new moodle_exception('nocmidselected', 'mod_booking');
+        }
+
+        $booking = singleton_service::get_instance_of_booking_by_cmid($cmid);
+
+        $wherearray['bookingid'] = (int)$booking->id;
+
+        list($fields, $from, $where, $params, $filter) =
+                booking::get_options_filter_sql(0, 0, '', null, null, [], $wherearray);
+
+        $sql = "SELECT $fields
+                FROM $from
+                WHERE $where";
+
+        $records = $DB->get_records_sql($sql, $params);
+
+        $outputdata = [];
+        $pattern = '/<br\s*\/?>/i';
+        $maxdatabeforecollapsable = get_config('booking', 'collapseshowsettings');
+        if ($maxdatabeforecollapsable === false) {
+            $maxdatabeforecollapsable = '2';
+        }
+        foreach ($records as $record) {
+            $settings = singleton_service::get_instance_of_booking_option_settings($record->id);
+            $tmpoutputdata = $settings->return_booking_option_information();
+            $tmpoutputdata['maxsessions'] = $maxdatabeforecollapsable;
+            $data = $settings->return_booking_option_information();
+            $data['description'] = preg_split($pattern, $data['description']);
+            if (count($settings->sessions) > $maxdatabeforecollapsable) {
+                $data['collapsedsessions'] = $data['sessions'];
+                unset($data['sessions']);
+            }
+            $outputdata[] = $data;
+        }
+
+        $data = [
+          'mybookings' => $outputdata,
+        ];
+        return [
+            'templates' => [
+                [
+                    'id' => 'main',
+                    'html' => $OUTPUT->render_from_template('mod_booking/mobile/mobile_mybookings_list', $data),
+                ],
+            ],
+            'javascript' => '',
+            'otherdata' => ['data' => '{}'],
+        ];
+    }
+
+    /**
+     * Returns detail view of booking option
+     *
+     * @param array $args Arguments from tool_mobile_get_content WS
+     * @return array HTML, javascript and otherdata
+     */
+    public static function mobile_booking_option_details($args) {
+
+        global $DB, $OUTPUT, $USER;
+
+        if (empty($args['optionid'])) {
+            throw new moodle_exception('nooptionid', 'mod_booking');
+        }
+
+        $settings = singleton_service::get_instance_of_booking_option_settings($args['optionid']);
+        $customform = customform::return_formelements($settings);
+        $mobileformbuilder = new mobileformbuilder();
+
+        $data = (array)$settings->return_settings_as_stdclass();
+
+        $teachers = [];
+        foreach ($data['teachers'] as $teacher) {
+            $teacher->email = str_replace('@', '&#64;', $teacher->email);
+            $teachers[] = (array)$teacher;
+        }
+
+        $data['teachers'] = $teachers;
+        $data['userid'] = $USER->id;
+
+        $boinfo = new bo_info($settings);
+        list($id, $isavailable, $description) = $boinfo->is_available($settings->id, $USER->id, false);
+
+        // Now we render the button for this option & user.
+        list($templates, $button) = booking_bookit::render_bookit_template_data($settings, 0, false);
+        $button = reset($button);
+
+        $ionsubmissionhtml = '';
+
+        switch ($id) {
+            case MOD_BOOKING_BO_COND_JSON_CUSTOMFORM:
+                if (!empty($customform)) {
+                    $customformstore = new customformstore($USER->id, $data['id']);
+                    $customformuserdata = $customformstore->get_customform_data();
+                    $formvalidated = [false];
+                    if ($customformuserdata) {
+                        $formvalidated = $customformstore->validation($customform, (array)$customformuserdata);
+                    }
+                    if (empty($formvalidated)) {
+                        $data['submit']['label'] = $button->data['main']['label'];
+                        $ionsubmissionhtml = $mobileformbuilder::submission_form_submitted($button);
+                    } else {
+                        if ($customformuserdata !== false) {
+                            $customform = $customformstore->translate_errors($customform, $formvalidated);
+                        }
+                        $ionsubmissionhtml = $mobileformbuilder::build_submission_entitites($customform, $data);
+                    }
+                }
+                break;
+            case MOD_BOOKING_BO_COND_BOOKITBUTTON:
+            case MOD_BOOKING_BO_COND_CONFIRMBOOKIT:
+                $data['submit']['label']
+                    = $description;
+                break;
+            case MOD_BOOKING_BO_COND_PRICEISSET:
+                $price = price::get_price('option', $settings->id);
+                $data['nosubmit']['label'] = $price['price'] . " " . $price['currency'];
+                break;
+            case MOD_BOOKING_BO_COND_BOOKINGPOLICY:
+                $data['nosubmit']['label'] = get_string('notbookable', 'mod_booking');
+                break;
+            default:
+
+                $data['nosubmit']['label']
+                    = !empty($description) ? $description : get_string('notbookable', 'mod_booking');
+                break;
+        }
+
+        $detailhtml = $OUTPUT->render_from_template('mod_booking/mobile/mobile_booking_option_details', $data);
+        return [
+            'templates' => [
+                [
+                    'id' => 'main',
+                    'html' => $detailhtml . $ionsubmissionhtml ?? '',
+                ],
+            ],
+            'javascript' => '',
+            'otherdata' => ['data' => '{}'],
+        ];
+    }
 
     /**
      * Returns all my bookings view for mobile app.
@@ -45,7 +215,7 @@ class mobile {
         global $OUTPUT, $USER, $DB;
 
         $mybookings = $DB->get_records_sql(
-        "SELECT ba.id id, c.id courseid, c.fullname fullname, b.id bookingid, b.name name, bo.text text, bo.id optionid,
+        "SELECT ba.id id, c.id courseid, c.fullname fullname, b.id bookingid, b.name, bo.text, bo.id optionid,
         bo.coursestarttime coursestarttime, bo.courseendtime courseendtime, cm.id cmid
         FROM
         {booking_answers} ba
@@ -64,7 +234,7 @@ class mobile {
                 name = 'booking')
             WHERE instance = b.id AND ba.userid = {$USER->id} AND cm.visible = 1");
 
-        $outputdata = array();
+        $outputdata = [];
 
         foreach ($mybookings as $key => $value) {
             $status = '';
@@ -75,27 +245,27 @@ class mobile {
             }
             $status = booking_getoptionstatus($value->coursestarttime, $value->courseendtime);
 
-            $outputdata[] = array(
+            $outputdata[] = [
                 'fullname' => $value->fullname,
                 'name' => $value->name,
                 'text' => $value->text,
                 'status' => $status,
-                'coursestarttime' => $coursestarttime
-            );
+                'coursestarttime' => $coursestarttime,
+            ];
         }
 
-        $data = array('mybookings' => $outputdata);
+        $data = ['mybookings' => $outputdata];
 
-        return array(
-            'templates' => array(
-                array(
+        return [
+            'templates' => [
+                [
                     'id' => 'main',
-                    'html' => $OUTPUT->render_from_template('mod_booking/mobile_mybookings_list', $data)
-                )
-            ),
+                    'html' => $OUTPUT->render_from_template('mod_booking/mobile/mobile_mybookings_list', $data),
+                ],
+            ],
             'javascript' => '',
-            'otherdata' => ''
-        );
+            'otherdata' => ['data' => '{}'],
+        ];
     }
 
     /**
@@ -105,95 +275,65 @@ class mobile {
      * @return array HTML, javascript and otherdata
      */
     public static function mobile_course_view($args) {
-        global $OUTPUT, $USER, $DB, $COURSE;
+        global $DB, $OUTPUT, $USER;
 
-        $bcolorshowall = 'light';
-        $bcolorshowactive = 'light';
-        $bcolormybooking = 'light';
+        $cmid = $args['cmid'];
 
-        $args = (object) $args;
-        $cm = get_coursemodule_from_id('booking', $args->cmid);
-        $allpages = 0;
-        $pagnumber = 0;
-
-        if (isset($args->whichview)) {
-            $whichview = $args->whichview;
+        if (empty($cmid)) {
+            throw new moodle_exception('nocmidselected', 'mod_booking');
         }
 
-        if (isset($args->pagnumber)) {
-            $pagnumber = $args->pagnumber;
+        $booking = singleton_service::get_instance_of_booking_by_cmid($cmid);
+
+        $wherearray['bookingid'] = (int)$booking->id;
+
+        list($fields, $from, $where, $params, $filter) =
+                booking::get_options_filter_sql(0, 0, '', null, null, [], $wherearray);
+
+        $sql = "SELECT $fields
+                FROM $from
+                WHERE $where";
+
+        $records = $DB->get_records_sql($sql, $params);
+
+        $outputdata = [];
+        $pattern = '/<br\s*\/?>/i';
+        $maxdatabeforecollapsable = get_config('booking', 'collapseshowsettings');
+        if ($maxdatabeforecollapsable === false) {
+            $maxdatabeforecollapsable = '2';
+        }
+        foreach ($records as $record) {
+            $settings = singleton_service::get_instance_of_booking_option_settings($record->id);
+            $tmpoutputdata = $settings->return_booking_option_information();
+            $tmpoutputdata['maxsessions'] = $maxdatabeforecollapsable;
+            $data = $settings->return_booking_option_information();
+            $data['description'] = preg_split($pattern, $data['description']);
+            if (count($settings->sessions) > $maxdatabeforecollapsable) {
+                $data['collapsedsessions'] = $data['sessions'];
+                unset($data['sessions']);
+            }
+            $outputdata[] = $data;
         }
 
-        $searchstring = empty($args->searchstring) ? '' : $args->searchstring;
-
-        // Capabilities check.
-        require_login($args->courseid, false, $cm, true, true);
-
-        $context = context_module::instance($cm->id);
-
-        $booking = new booking($cm->id);
-
-        $paging = $booking->settings->paginationnum;
-        if (!isset($whichview)) {
-            $whichview = $booking->settings->whichview;
-        }
-
-        if ($paging == 0) {
-            $paging = 25;
-        }
-
-        switch ($whichview) {
-            case 'showall':
-                $bookingoptions = $booking->get_all_options($pagnumber * $paging, $paging, $searchstring);
-                $allpages = floor($booking->get_all_options_count($searchstring) / $paging);
-                $bcolorshowall = '';
-                break;
-
-            case 'showactive':
-                $bookingoptions = $booking->get_active_optionids($booking->id, $pagnumber * $paging,
-                $paging, $searchstring);
-                $allpages = floor($booking->get_active_optionids_count($booking->id, $searchstring) / $paging);
-                $bcolorshowactive = '';
-                break;
-
-            case 'mybooking':
-                $bookingoptions = $booking->get_my_bookingids($pagnumber * $paging, $paging, $searchstring);
-                $allpages = floor($booking->get_my_bookingids_count($searchstring) / $paging);
-                $bcolormybooking = '';
-                break;
-        }
-
-        $options = self::prepare_options_array($bookingoptions, $booking, $context, $cm, $args->courseid);
-
-        $data = array(
-            'pagnumber' => $pagnumber, 'courseid' => $args->courseid, 'booking' => $booking,
-                        'booking_option' => $options, 'cmid' => $cm->id, 'activeview' => $whichview,
-            'string' => array(
-                'showactive' => get_string('activebookingoptions', 'booking'),
-                'showallbookingoptions' => get_string('showallbookingoptions', 'booking'),
-                'showmybookingsonly' => get_string('showmybookingsonly', 'booking'),
-                'next' => get_string('next', 'booking'),
-                'previous' => get_string('previous', 'booking')
-            ), 'btnnp' => self::npbuttons($allpages, $pagnumber), 'bcolorshowall' => $bcolorshowall,
-            'bcolorshowactive' => $bcolorshowactive, 'bcolormybooking' => $bcolormybooking
-        );
-        return array(
-
-            'templates' => array(
-
-                array(
+        $data = [
+          'mybookings' => $outputdata,
+        ];
+        return [
+            'templates' => [
+                [
                     'id' => 'main',
-                    'html' => $OUTPUT->render_from_template('mod_booking/mobile_view_page', $data)
-                )
-            ), 'javascript' => '', 'otherdata' => array('searchstring' => $searchstring)
-
-        );
+                    'html' => $OUTPUT->render_from_template('mod_booking/mobile/mobile_mybookings_list', $data),
+                ],
+            ],
+            'javascript' => '',
+            'otherdata' => ['data' => '{}'],
+        ];
     }
 
     /**
      * TODO: What does it do?
-     * @param $allpages
-     * @param $pagnumber
+     * @param int $allpages
+     * @param int $pagnumber
      * @return array
      */
     public static function npbuttons($allpages, $pagnumber) {
@@ -208,27 +348,29 @@ class mobile {
             $n = $pagnumber + 1;
         }
 
-        return array(
-            'p' => $p, 'n' => $n
-        );
+        return [
+            'p' => $p, 'n' => $n,
+        ];
     }
 
     /**
      * TODO: What does it do?
      *
-     * @param $bookingoptions
+     * @param mixed $bookingoptions
      * @param booking $booking
      * @param context $context
      * @param stdClass $cm
-     * @param $courseid
+     * @param int $courseid
+     *
      * @return array
      * @throws \coding_exception
+     *
      */
     public static function prepare_options_array($bookingoptions, booking $booking, context $context, stdClass $cm, $courseid) {
-        $options = array();
+        $options = [];
 
         foreach ($bookingoptions as $key => $value) {
-            $option = new booking_option($cm->id,
+            $option = singleton_service::get_instance_of_booking_option($cm->id,
                     (is_object($value) ? $value->id : $value));
             $option->get_teachers();
             $options[] = self::prepare_options($option, $booking, $context, $cm, $courseid);
@@ -240,11 +382,11 @@ class mobile {
     /**
      * Prepare booking options for output on mobile.
      *
-     * @param $values
+     * @param mixed $values
      * @param booking $booking
      * @param context $context
      * @param stdClass $cm
-     * @param $courseid
+     * @param int $courseid
      * @return array
      * @throws \coding_exception
      */
@@ -270,7 +412,7 @@ class mobile {
             $text .= format_text($values->option->description);
         }
 
-        $teachers = array();
+        $teachers = [];
         foreach ($values->teachers as $tvalue) {
             $teachers[] = "{$tvalue->firstname} {$tvalue->lastname}";
         }
@@ -284,9 +426,9 @@ class mobile {
                 'teachers', 'booking') : $booking->settings->lblteachname) . ": " . implode(', ',
                 $teachers) : '');
 
-        $delete = array();
+        $delete = [];
         $status = '';
-        $button = array();
+        $button = [];
         $booked = '';
         $inpast = $values->option->courseendtime && ($values->option->courseendtime < time());
 
@@ -322,15 +464,15 @@ class mobile {
                 $cmessage = get_string('deletebooking', 'booking', $deletemessage);
                 $bname = (empty($values->option->btncancelname) ? get_string('cancelbooking',
                         'booking') : $values->option->btncancelname);
-                $delete = array(
+                $delete = [
                     'text' => $bname,
                                 'args' => "optionid: {$values->option->id}, cmid: {$cm->id}, courseid: {$courseid}",
-                    'cmessage' => "{$cmessage}"
-                );
+                    'cmessage' => "{$cmessage}",
+                ];
 
                 if ($values->option->coursestarttime > 0 && $values->booking->allowupdatedays > 0) {
                     if (time() > strtotime("-{$values->booking->allowupdatedays} day", $values->option->coursestarttime)) {
-                        $delete = array();
+                        $delete = [];
                     }
                 }
             }
@@ -356,22 +498,22 @@ class mobile {
             }
             $bnow = (empty($booking->settings->btnbooknowname) ? get_string('booknow', 'booking') :
                 $booking->settings->btnbooknowname);
-            $button = array(
+            $button = [
                 'text' => $bnow,
                             'args' => "answer: {$values->option->id}, id: {$cm->id}, courseid: {$courseid}",
-                'message' => $message
-            );
+                'message' => $message,
+            ];
         }
 
         if (($values->option->limitanswers && ($status == "full")) || ($status == "closed") ||
             !$underlimit || $values->option->disablebookingusers) {
-            $button = array();
+            $button = [];
         }
 
         if ($booking->settings->cancancelbook == 0 && $values->option->courseendtime > 0
             && $values->option->courseendtime < time()) {
-            $button = array();
-            $delete = array();
+            $button = [];
+            $delete = [];
         }
 
         if (!empty($booking->settings->banusernames)) {
@@ -379,7 +521,7 @@ class mobile {
 
             foreach ($disabledusernames as $value) {
                 if (strpos($USER->username, trim($value)) !== false) {
-                    $button = array();
+                    $button = [];
                 }
             }
         }
@@ -390,9 +532,9 @@ class mobile {
                     $values->option->maxoverbooking - $values->waiting);
         }
 
-        return array(
+        return [
             'name' => $values->option->text, 'text' => $text, 'button' => $button,
-            'delete' => $delete
-        );
+            'delete' => $delete,
+        ];
     }
 }

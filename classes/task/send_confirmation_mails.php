@@ -13,6 +13,16 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Handling of sending confirmation mains.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Bernhard Fischer
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace mod_booking\task;
 
 defined('MOODLE_INTERNAL') || die();
@@ -21,9 +31,18 @@ require_once($CFG->dirroot . '/mod/booking/lib.php');
 
 use mod_booking\message_controller;
 use context_system;
+use Exception;
 
 global $CFG;
 
+/**
+ * Class for handling of sending confirmation mains.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Bernhard Fischer
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 class send_confirmation_mails extends \core\task\adhoc_task {
 
     /**
@@ -32,7 +51,7 @@ class send_confirmation_mails extends \core\task\adhoc_task {
      * @var \stdClass
      */
     public function get_name() {
-        return get_string('task_send_confirmation_mails', 'mod_booking');
+        return get_string('tasksendconfirmationmails', 'mod_booking');
     }
 
     /**
@@ -55,38 +74,49 @@ class send_confirmation_mails extends \core\task\adhoc_task {
 
             if ($trimmedmessage != '0') {
                 if (!empty($taskdata->userto)) {
-                    $userdata = $DB->get_record('user', array('id' => $taskdata->userto->id));
+                    $userdata = $DB->get_record('user', ['id' => $taskdata->userto->id]);
                     if (!$userdata->deleted) {
-                        // Hack to support multiple attachments.
-                        if (!message_controller::phpmailer_email_to_user($taskdata->userto, $taskdata->userfrom,
-                            $taskdata->subject, $taskdata->messagetext, $taskdata->messagehtml,
-                            $taskdata->attachment ?? '', empty($taskdata->attachment) ? '' : 'booking.ics')) {
+                        /* Add try-catch because email_to_user might throw an SMTP exception
+                        when recipient mail address is not found. */
+                        try {
+                            // NOTE: email_to_user does not support multiple attachments.
+                            if (!email_to_user($taskdata->userto, $taskdata->userfrom,
+                                $taskdata->subject, $taskdata->messagetext, $taskdata->messagehtml,
+                                $taskdata->attachment->{'booking.ics'} ?? '',
+                                empty($taskdata->attachment->{'booking.ics'}) ? '' : 'booking.ics')) {
 
-                            throw new \coding_exception('Confirmation email was not sent');
+                                mtrace('Confirmation could not be sent.');
 
-                        } else {
-                            if (!empty($taskdata->attachment)) {
-                                foreach ($taskdata->attachment as $key => $attached) {
-                                    $search = str_replace($CFG->tempdir . '/', '', $attached);
-                                    if ($DB->count_records_select('task_adhoc', "customdata LIKE '%$search%'") == 1) {
-                                        if (file_exists($attached)) {
-                                            unlink($attached);
+                            } else {
+                                // After sending we can delete the attachment.
+                                if (!empty($taskdata->attachment)) {
+                                    foreach ($taskdata->attachment as $key => $attached) {
+                                        $search = str_replace($CFG->tempdir . '/', '', $attached);
+                                        if ($DB->count_records_select('task_adhoc', "customdata LIKE '%$search%'") == 1) {
+                                            if (file_exists($attached)) {
+                                                unlink($attached);
+                                            }
                                         }
                                     }
                                 }
-                            }
 
-                            // Use an event to log that a message has been sent.
-                            $event = \mod_booking\event\message_sent::create(array(
-                                'context' => context_system::instance(),
-                                'userid' => $taskdata->userto->id,
-                                'relateduserid' => $taskdata->userfrom->id,
-                                'other' => array(
-                                    'messageparam' => $taskdata->messageparam,
-                                    'subject' => $taskdata->subject
-                                )
-                            ));
-                            $event->trigger();
+                                // Use an event to log that a message has been sent.
+                                $event = \mod_booking\event\message_sent::create([
+                                    'context' => context_system::instance(),
+                                    'userid' => $taskdata->userto->id,
+                                    'relateduserid' => $taskdata->userfrom->id,
+                                    'objectid' => $taskdata->optionid ?? 0,
+                                    'other' => [
+                                        'messageparam' => $taskdata->messageparam,
+                                        'subject' => $taskdata->subject,
+                                        'objectid' => $taskdata->optionid ?? 0,
+                                        'message' => $taskdata->messagetext ?? 0,
+                                    ],
+                                ]);
+                                $event->trigger();
+                            }
+                        } catch (Exception $e) {
+                            mtrace('Confirmation could not be sent because of the following exception: ' . $e->getMessage());
                         }
                     }
                 } else {

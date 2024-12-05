@@ -13,16 +13,38 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
-namespace mod_booking\utils;
-
-use \stdClass;
 
 /**
- * Wunderbyte Payment Methods Class:
+ * Wunderbyte Payment Methods.
+ *
  * Contains methods for license verification and more.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+namespace mod_booking\utils;
+
+use stdClass;
+
+/**
+ * Class to handle Wunderbyte Payment Methods.
+ *
+ * Contains methods for license verification and more.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class wb_payment {
-    const PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----
+
+    /**
+     * MOD_BOOKING_PUBLIC_KEY
+     *
+     * @var mixed
+     */
+    const MOD_BOOKING_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu8vRBnPDug2pKoGY9wQS
 KNTK1SzrPuU0KC8xm22GPQZQM1XkPpvNwBp8CmXUN29r/qiPxapDNVmIH5Ectvb+
 NA7EsuVSS8xV6HfjV0tNZKIfFA4b1JD7t6l4gGDLuoppvKQV9n1JP/uZhQlFZ8Dg
@@ -35,7 +57,7 @@ pwIDAQAB
     /**
      * Decrypt a PRO license key to get the expiration date of the license
      *
-     * @param stdClass $signedkey an object containing licensekey and signature
+     * @param string $encryptedlicensekey an object containing licensekey and signature
      * @return string the expiration date of the license key formatted as Y-m-d
      */
     public static function decryptlicensekey(string $encryptedlicensekey): string {
@@ -44,7 +66,7 @@ pwIDAQAB
         $encryptedlicensekey = base64_decode($encryptedlicensekey);
 
         // Step 2: Decrypt using public key.
-        openssl_public_decrypt($encryptedlicensekey, $licensekey, self::PUBLIC_KEY);
+        openssl_public_decrypt($encryptedlicensekey, $licensekey, self::MOD_BOOKING_PUBLIC_KEY);
 
         // Step 3: Do another base64 decode and decrypt using wwwroot.
         $c = base64_decode($licensekey);
@@ -83,8 +105,8 @@ pwIDAQAB
             }
         }
         // Overriding - always use PRO for testing / debugging.
-        global $CFG;
-        if (!empty($CFG->phpunit_dataroot) || !empty($CFG->behat_wwwroot)) {
+        // Check if Behat OR PhpUnit tests are running.
+        if ((defined('BEHAT_SITE_RUNNING') && BEHAT_SITE_RUNNING) || (defined('PHPUNIT_TEST') && PHPUNIT_TEST)) {
             return true;
         }
         return false;

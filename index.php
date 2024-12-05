@@ -22,13 +22,15 @@
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+use mod_booking\singleton_service;
+
 require_once(__DIR__ . '/../../config.php');
 require_once("lib.php");
 
 $id = required_param('id', PARAM_INT); // Course id.
 
-$PAGE->set_url('/mod/booking/index.php', array('id' => $id));
-$course = $DB->get_record('course', array('id' => $id), '*', MUST_EXIST);
+$PAGE->set_url('/mod/booking/index.php', ['id' => $id]);
+$course = $DB->get_record('course', ['id' => $id], '*', MUST_EXIST);
 
 require_login($course);
 $PAGE->set_pagelayout('incourse');
@@ -71,11 +73,11 @@ foreach ($modinfo->instances['booking'] as $cm) {
     }
     if ($previoussectionname != $sectionname) {
         $printsection = $sectionname;
-        $table->data[] = array($printsection, '');
+        $table->data[] = [$printsection, ''];
     }
 
     $context = context_module::instance($cm->id);
-    $booking = new mod_booking\booking($cm->id);
+    $booking = singleton_service::get_instance_of_booking_by_cmid($cm->id);
     $bo = $booking->get_user_booking($USER);
 
     $numberofbookings = '';
@@ -97,7 +99,7 @@ foreach ($modinfo->instances['booking'] as $cm) {
         $tthref = "<a href=\"view.php?id=$cm->id\">" . format_string($cm->name, true) . "</a>";
     }
 
-    $table->data[] = array($tthref, $numberofbookings);
+    $table->data[] = [$tthref, $numberofbookings];
 }
 echo "<br />";
 echo html_writer::table($table);

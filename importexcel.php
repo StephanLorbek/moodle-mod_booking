@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * Import excel data - change activity completion to user
  *
@@ -20,6 +21,9 @@
  * @copyright 2015 Andraž Prinčič www.princic.net
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
+use mod_booking\singleton_service;
+
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/booking/locallib.php');
 require_once('importexcel_form.php');
@@ -27,8 +31,8 @@ require_once($CFG->libdir . '/completionlib.php');
 
 $id = required_param('id', PARAM_INT); // Course Module ID.
 
-$url = new moodle_url('/mod/booking/importexcel.php', array('id' => $id));
-$urlredirect = new moodle_url('/mod/booking/view.php', array('id' => $id));
+$url = new moodle_url('/mod/booking/importexcel.php', ['id' => $id]);
+$urlredirect = new moodle_url('/mod/booking/view.php', ['id' => $id]);
 $PAGE->set_url($url);
 
 list($course, $cm) = get_course_and_cm_from_cmid($id);
@@ -40,7 +44,7 @@ $PAGE->activityheader->disable();
 
 $groupmode = groups_get_activity_groupmode($cm);
 
-if (!$booking = new \mod_booking\booking($cm->id)) {
+if (!$booking = singleton_service::get_instance_of_booking_by_cmid($cm->id)) {
     throw new invalid_parameter_exception("Course module id is incorrect");
 }
 
@@ -66,7 +70,7 @@ if ($mform->is_cancelled()) {
     $csvfile = $mform->get_file_content('excelfile');
 
     $lines = explode(PHP_EOL, $csvfile);
-    $csvarr = array();
+    $csvarr = [];
     foreach ($lines as $line) {
         $csvarr[] = str_getcsv($line);
     }
@@ -102,8 +106,7 @@ if ($mform->is_cancelled()) {
         foreach ($csvarr as $line) {
             if (count($line) >= 3) {
                 $user = $DB->get_record('booking_answers',
-                        array('bookingid' => $cm->instance, 'userid' => $line[$useridpos],
-                            'optionid' => $line[$optionidpos]));
+                        ['bookingid' => $cm->instance, 'userid' => $line[$useridpos], 'optionid' => $line[$optionidpos]]);
 
                 if ($user !== false) {
                     $user->completed = $line[$completedpos];
@@ -111,7 +114,7 @@ if ($mform->is_cancelled()) {
                     $DB->update_record('booking_answers', $user, false);
 
                     $countcompleted = $DB->count_records('booking_answers',
-                        array('bookingid' => $cm->instance, 'userid' => $line[$useridpos], 'completed' => '1'));
+                        ['bookingid' => $cm->instance, 'userid' => $line[$useridpos], 'completed' => '1']);
 
                     if ($completion->is_enabled($cm) && $booking->settings->enablecompletion > $countcompleted) {
                         $completion->update_state($cm, COMPLETION_INCOMPLETE, $user->userid);

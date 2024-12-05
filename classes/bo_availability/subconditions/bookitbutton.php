@@ -36,6 +36,7 @@ require_once($CFG->dirroot . '/mod/booking/lib.php');
 
 /**
  * This is the base booking condition. It is actually used to show the bookit button.
+ *
  * It will always return false, because its the last check in the chain of booking conditions.
  * We use this to have a clean logic of how depticting the book it button.
  *
@@ -48,7 +49,17 @@ require_once($CFG->dirroot . '/mod/booking/lib.php');
 class bookitbutton implements bo_subcondition {
 
     /** @var int $id Standard Conditions have hardcoded ids. */
-    public $id = BO_COND_BOOKITBUTTON;
+    public $id = MOD_BOOKING_BO_COND_BOOKITBUTTON;
+
+    /**
+     * Get the condition id.
+     *
+     * @return int
+     *
+     */
+    public function get_id(): int {
+        return $this->id;
+    }
 
     /**
      * Needed to see if class can take JSON.
@@ -75,7 +86,7 @@ class bookitbutton implements bo_subcondition {
      * @param bool $not Set true if we are inverting the condition
      * @return bool True if available
      */
-    public function is_available(booking_option_settings $settings, $subbookingid, $userid, $not = false):bool {
+    public function is_available(booking_option_settings $settings, $subbookingid, $userid, $not = false): bool {
 
         // In this case, the book it button is always shown.
         // This always "blocks" the booking, so we always return false.
@@ -94,10 +105,10 @@ class bookitbutton implements bo_subcondition {
      * (when displaying all information about the activity) and 'student' cases
      * (when displaying only conditions they don't meet).
      *
-     * @param bool $full Set true if this is the 'full information' view
      * @param booking_option_settings $settings Item we're checking
      * @param int $subbookingid
      * @param int $userid User ID to check availability for
+     * @param bool $full Set true if this is the 'full information' view
      * @param bool $not Set true if we are inverting the condition
      * @return array availability and Information string (for admin) about all restrictions on
      *   this item
@@ -109,9 +120,9 @@ class bookitbutton implements bo_subcondition {
 
         $isavailable = $this->is_available($settings, $subbookingid, $userid, $not);
 
-        $description = $this->get_description_string($isavailable, $full);
+        $description = $this->get_description_string();
 
-        return [$isavailable, $description, BO_PREPAGE_BOOK, BO_BUTTON_MYBUTTON];
+        return [$isavailable, $description, MOD_BOOKING_BO_PREPAGE_BOOK, MOD_BOOKING_BO_BUTTON_MYBUTTON];
     }
 
     /**
@@ -135,12 +146,13 @@ class bookitbutton implements bo_subcondition {
      * @param booking_option_settings $settings
      * @param int $subbookingid
      * @param int $userid
-     * @param boolean $full
-     * @param boolean $not
+     * @param bool $full
+     * @param bool $not
+     * @param bool $fullwidth
      * @return array
      */
     public function render_button(booking_option_settings $settings,
-        int $subbookingid, $userid = 0, $full = false, $not = false): array {
+        int $subbookingid, int $userid=0, bool $full=false, bool $not=false, bool $fullwidth=true): array {
 
         global $USER;
 
@@ -149,25 +161,28 @@ class bookitbutton implements bo_subcondition {
         }
         $label = $this->get_description_string();
 
-        return [
-            'mod_booking/bookit_button',
-            [
-                'itemid' => $subbookingid,
-                'area' => 'subbooking',
-                'userid' => $userid ?? 0,
-                'main' => [
-                    'label' => $label,
-                    'class' => 'btn btn-secondary',
-                    'role' => 'button',
-                ]
-            ]
+        $data = [
+            'itemid' => $subbookingid,
+            'area' => 'subbooking',
+            'userid' => $userid ?? 0,
+            'main' => [
+                'label' => $label,
+                'class' => 'btn btn-secondary',
+                'role' => 'button',
+            ],
         ];
+
+        if ($fullwidth) {
+            $data['fullwidth'] = $fullwidth;
+        }
+
+        return ['mod_booking/bookit_button', $data];
     }
 
     /**
      * Helper function to return localized description strings.
      *
-     * @return void
+     * @return string
      */
     private function get_description_string() {
 

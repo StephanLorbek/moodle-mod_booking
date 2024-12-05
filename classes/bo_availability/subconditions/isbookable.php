@@ -50,7 +50,17 @@ require_once($CFG->dirroot . '/mod/booking/lib.php');
 class isbookable implements bo_subcondition {
 
     /** @var int $id Standard Conditions have hardcoded ids. */
-    public $id = BO_COND_ISBOOKABLE;
+    public $id = MOD_BOOKING_BO_COND_ISBOOKABLE;
+
+    /**
+     * Get the condition id.
+     *
+     * @return int
+     *
+     */
+    public function get_id(): int {
+        return $this->id;
+    }
 
     /**
      * Needed to see if class can take JSON.
@@ -77,7 +87,7 @@ class isbookable implements bo_subcondition {
      * @param bool $not Set true if we are inverting the condition
      * @return bool True if available
      */
-    public function is_available(booking_option_settings $settings, int $subbookingid, int $userid, $not = false):bool {
+    public function is_available(booking_option_settings $settings, int $subbookingid, int $userid, $not = false): bool {
 
         global $USER;
 
@@ -93,8 +103,8 @@ class isbookable implements bo_subcondition {
 
         // If the user is not yet booked in the option we return fasle.
         switch ($bookinganswer->user_status($userid)) {
-            case STATUSPARAM_BOOKED:
-            case STATUSPARAM_RESERVED:
+            case MOD_BOOKING_STATUSPARAM_BOOKED:
+            case MOD_BOOKING_STATUSPARAM_RESERVED:
                 $isavailable = true;
                 break;
             default:
@@ -119,10 +129,10 @@ class isbookable implements bo_subcondition {
      * (when displaying all information about the activity) and 'student' cases
      * (when displaying only conditions they don't meet).
      *
-     * @param bool $full Set true if this is the 'full information' view
      * @param booking_option_settings $settings Item we're checking
      * @param int $subbookingid
      * @param int $userid User ID to check availability for
+     * @param bool $full Set true if this is the 'full information' view
      * @param bool $not Set true if we are inverting the condition
      * @return array availability and Information string (for admin) about all restrictions on
      *   this item
@@ -136,7 +146,7 @@ class isbookable implements bo_subcondition {
 
         $description = $this->get_description_string($isavailable, $full);
 
-        return [$isavailable, $description, BO_PREPAGE_NONE, BO_BUTTON_JUSTMYALERT];
+        return [$isavailable, $description, MOD_BOOKING_BO_PREPAGE_NONE, MOD_BOOKING_BO_BUTTON_JUSTMYALERT];
     }
 
     /**
@@ -160,12 +170,13 @@ class isbookable implements bo_subcondition {
      * @param booking_option_settings $settings
      * @param int $subbookingid
      * @param int $userid
-     * @param boolean $full
-     * @param boolean $not
+     * @param bool $full
+     * @param bool $not
+     * @param bool $fullwidth
      * @return array
      */
     public function render_button(booking_option_settings $settings,
-        int $subbookingid, $userid = 0, $full = false, $not = false): array {
+        int $subbookingid, int $userid=0, bool $full=false, bool $not=false, bool $fullwidth=true): array {
 
         global $USER;
 
@@ -174,20 +185,23 @@ class isbookable implements bo_subcondition {
         }
         $label = $this->get_description_string(false, $full);
 
-        return [
-            'mod_booking/bookit_button',
-            [
-                'itemid' => $settings->id,
-                'area' => 'option',
-                'userid' => $userid ?? 0,
-                'nojs' => true,
-                'main' => [
-                    'label' => $label,
-                    'class' => 'alert alert-success',
-                    'role' => 'alert',
-                ]
-            ]
+        $data = [
+            'itemid' => $settings->id,
+            'area' => 'option',
+            'userid' => $userid ?? 0,
+            'nojs' => true,
+            'main' => [
+                'label' => $label,
+                'class' => 'alert alert-danger',
+                'role' => 'alert',
+            ],
         ];
+
+        if ($fullwidth) {
+            $data['fullwidth'] = $fullwidth;
+        }
+
+        return ['mod_booking/bookit_button', $data];
     }
 
     /**
@@ -195,15 +209,15 @@ class isbookable implements bo_subcondition {
      *
      * @param bool $isavailable
      * @param bool $full
-     * @return void
+     * @return string
      */
     private function get_description_string($isavailable, $full) {
         if ($isavailable) {
-            $description = $full ? get_string('bo_cond_subisbookable_full_available', 'mod_booking') :
-                get_string('bo_cond_subisbookable_available', 'mod_booking');
+            $description = $full ? get_string('bocondsubisbookablefullavailable', 'mod_booking') :
+                get_string('bocondsubisbookableavailable', 'mod_booking');
         } else {
-            $description = $full ? get_string('bo_cond_subisbookable_full_not_available', 'mod_booking') :
-                get_string('bo_cond_subisbookable_not_available', 'mod_booking');
+            $description = $full ? get_string('bocondsubisbookablefullnotavailable', 'mod_booking') :
+                get_string('bocondsubisbookablenotavailable', 'mod_booking');
         }
         return $description;
     }

@@ -17,7 +17,7 @@
 namespace mod_booking\form;
 
 use html_writer;
-use mod_booking\dates_handler;
+use mod_booking\option\dates_handler;
 use stdClass;
 
 /**
@@ -46,7 +46,7 @@ class modaloptiondateform extends \core_form\dynamic_form {
         $repeateloptions = [];
 
         $optiondatelabel = html_writer::tag('b', get_string('optiondate', 'booking') . ' {no}',
-            array('class' => 'optiondatelabel'));
+            ['class' => 'optiondatelabel']);
         $repeatedoptiondates[] = $mform->createElement('static', 'optiondatelabel', $optiondatelabel);
 
         $repeatedoptiondates[] = $mform->createElement('date_time_selector', 'optiondatestart',
@@ -80,16 +80,28 @@ class modaloptiondateform extends \core_form\dynamic_form {
      * If context depends on the form data, it is available in $this->_ajaxformdata or
      * by calling $this->optional_param()
      *
-     * @return context
+     * @return \context_system
      */
     protected function get_context_for_dynamic_submission(): \context {
         return \context_system::instance();
     }
 
+    /**
+     * Check_access_for_dynamic_submission
+     *
+     * @return void
+     *
+     */
     protected function check_access_for_dynamic_submission(): void {
         require_capability('moodle/site:config', \context_system::instance());
     }
 
+    /**
+     * Get custom optiondates.
+     *
+     * @return array
+     *
+     */
     protected function get_custom_optiondates(): array {
         $rv = [];
         if (!empty($this->_ajaxformdata['option']) && is_array($this->_ajaxformdata['option'])) {
@@ -100,10 +112,22 @@ class modaloptiondateform extends \core_form\dynamic_form {
         return $rv;
     }
 
+    /**
+     * Set_data_for_dynamic_submission
+     *
+     * @return void
+     *
+     */
     public function set_data_for_dynamic_submission(): void {
         $this->set_data($this->get_custom_optiondates());
     }
 
+    /**
+     * Process dynamic submission.
+     *
+     * @return array
+     *
+     */
     public function process_dynamic_submission() {
         $data = $this->get_data();
         // Transform optiondates into an array of objects.
@@ -126,7 +150,7 @@ class modaloptiondateform extends \core_form\dynamic_form {
 
             foreach ($data->optiondatestart as $idx => $optiondatestart) {
 
-                $optiondate = new stdClass;
+                $optiondate = new stdClass();
                 $randomid = bin2hex(random_bytes(4));
                 $optiondate->dateid = 'customdate-' . $randomid;
                 $optiondate->starttimestamp = $optiondatestart;
@@ -143,6 +167,14 @@ class modaloptiondateform extends \core_form\dynamic_form {
         return $resultarray;
     }
 
+    /**
+     * Form validation.
+     *
+     * @param array $data
+     * @param array $files
+     * @return array
+     *
+     */
     public function validation($data, $files) {
         $errors = [];
 
@@ -156,6 +188,12 @@ class modaloptiondateform extends \core_form\dynamic_form {
         return $errors;
     }
 
+    /**
+     * Get page url for dynamic submission
+     *
+     * @return \moodle_url
+     *
+     */
     protected function get_page_url_for_dynamic_submission(): \moodle_url {
         return new \moodle_url('/mod/booking/editoptions.php');
     }

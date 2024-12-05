@@ -39,14 +39,34 @@ use templatable;
  */
 class button_notifyme implements renderable, templatable {
 
+    /**
+     * $userid
+     *
+     * @var int
+     */
     private $userid = 0;
 
+    /**
+     * $itemid
+     *
+     * @var int
+     */
     private $itemid = 0;
 
+    /**
+     * $onlist
+     *
+     * @var bool
+     */
     private $onlist = false;
 
     /**
-     * Dummy constructor
+     * Constructor
+     *
+     * @param int $userid
+     * @param int $itemid
+     * @param bool $onlist
+     *
      */
     public function __construct(int $userid, int $itemid, bool $onlist = false) {
         $this->userid = $userid;
@@ -57,14 +77,14 @@ class button_notifyme implements renderable, templatable {
     /**
      * Return data as array.
      *
-     * @return void
+     * @return array
      */
     public function return_as_array() {
-        $returnarray = array(
+        $returnarray = [
             'userid' => $this->userid,
             'itemid' => $this->itemid,
             'area' => 'option',
-        );
+        ];
 
         if ($this->onlist) {
             $returnarray['onlist'] = true;

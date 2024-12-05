@@ -29,6 +29,7 @@
 use context_system;
 use mod_booking\bo_availability\bo_condition;
 use mod_booking\bo_availability\bo_info;
+use mod_booking\booking_answers;
 use mod_booking\booking_option_settings;
 use mod_booking\singleton_service;
 use MoodleQuickForm;
@@ -50,7 +51,20 @@ require_once($CFG->dirroot . '/mod/booking/lib.php');
 class onwaitinglist implements bo_condition {
 
     /** @var int $id Standard Conditions have hardcoded ids. */
-    public $id = BO_COND_ONWAITINGLIST;
+    public $id = MOD_BOOKING_BO_COND_ONWAITINGLIST;
+
+    /** @var bool $overwrittenbybillboard Indicates if the condition can be overwritten by the billboard. */
+    public $overwrittenbybillboard = false;
+
+    /**
+     * Get the condition id.
+     *
+     * @return int
+     *
+     */
+    public function get_id(): int {
+        return $this->id;
+    }
 
     /**
      * Needed to see if class can take JSON.
@@ -76,7 +90,7 @@ class onwaitinglist implements bo_condition {
      * @param bool $not Set true if we are inverting the condition
      * @return bool True if available
      */
-    public function is_available(booking_option_settings $settings, $userid, $not = false):bool {
+    public function is_available(booking_option_settings $settings, int $userid, bool $not = false): bool {
 
         global $DB;
 
@@ -90,8 +104,27 @@ class onwaitinglist implements bo_condition {
 
         // If the user is not yet booked, and option is not fully booked, we return true.
         if (!isset($bookinginformation['onwaitinglist'])) {
-
             $isavailable = true;
+        } else if (!empty($settings->jsonobject->useprice)) {
+            // If user is confirmed, we don't block.
+            $ba = $bookinganswer->usersonwaitinglist[$userid];
+
+            if (($bookinginformation['onwaitinglist']['fullybooked'] === false)) {
+                // If there are places free, we might want to allow booking.
+                // Either when we don't need confirmation.
+                if (empty($settings->waitforconfirmation)) {
+                    $isavailable = true;
+                } else if (!empty($ba->json)) {
+                    // Or when confirmation is already given.
+                    $jsonobject = json_decode($ba->json);
+                    if (
+                        !empty($jsonobject->confirmwaitinglist)
+                        || empty($settings->waitforconfirmation)
+                    ) {
+                        $isavailable = true;
+                    }
+                }
+            }
         }
 
         // If it's inversed, we inverse.
@@ -103,6 +136,18 @@ class onwaitinglist implements bo_condition {
     }
 
     /**
+     * Each function can return additional sql.
+     * This will be used if the conditions should not only block booking...
+     * ... but actually hide the conditons alltogether.
+     *
+     * @return array
+     */
+    public function return_sql(): array {
+
+        return ['', '', '', [], ''];
+    }
+
+    /**
      * The hard block is complementary to the is_available check.
      * While is_available is used to build eg also the prebooking modals and...
      * ... introduces eg the booking policy or the subbooking page, the hard block is meant to prevent ...
@@ -111,9 +156,9 @@ class onwaitinglist implements bo_condition {
      * ... as they are not necessary, but return true when the booking policy is not yet answered.
      * Hard block is only checked if is_available already returns false.
      *
-     * @param booking_option_settings $booking_option_settings
-     * @param integer $userid
-     * @return boolean
+     * @param booking_option_settings $settings
+     * @param int $userid
+     * @return bool
      */
     public function hard_block(booking_option_settings $settings, $userid): bool {
         return true;
@@ -129,22 +174,31 @@ class onwaitinglist implements bo_condition {
      * (when displaying all information about the activity) and 'student' cases
      * (when displaying only conditions they don't meet).
      *
-     * @param bool $full Set true if this is the 'full information' view
      * @param booking_option_settings $settings Item we're checking
      * @param int $userid User ID to check availability for
+     * @param bool $full Set true if this is the 'full information' view
      * @param bool $not Set true if we are inverting the condition
      * @return array availability and Information string (for admin) about all restrictions on
      *   this item
      */
-    public function get_description(booking_option_settings $settings, $userid = null, $full = false, $not = false):array {
+    public function get_description(booking_option_settings $settings, $userid = null, $full = false, $not = false): array {
 
         $description = '';
 
         $isavailable = $this->is_available($settings, $userid, $not);
 
-        $description = $this->get_description_string($isavailable, $full);
+        $description = $this->get_description_string($isavailable, $full, $userid, $settings);
 
-        return [$isavailable, $description, BO_PREPAGE_NONE, BO_BUTTON_JUSTMYALERT];
+        // If the user is in principle allowed to overbook AND the overbook setting is set in the instance, overbooking is possible.
+        if (!empty($settings->waitforconfirmation)
+            && !empty(get_config('booking', 'allowoverbooking'))
+            && has_capability('mod/booking:canoverbook', context_system::instance())) {
+            $buttontype = MOD_BOOKING_BO_BUTTON_MYALERT;
+        } else {
+            $buttontype = MOD_BOOKING_BO_BUTTON_JUSTMYALERT;
+        }
+
+        return [$isavailable, $description, MOD_BOOKING_BO_PREPAGE_NONE, $buttontype];
     }
 
     /**
@@ -163,10 +217,11 @@ class onwaitinglist implements bo_condition {
      * Not all bo_conditions need to take advantage of this. But eg a condition which requires...
      * ... the acceptance of a booking policy would render the policy with this function.
      *
-     * @param integer $optionid
+     * @param int $optionid
+     * @param int $userid optional user id
      * @return array
      */
-    public function render_page(int $optionid) {
+    public function render_page(int $optionid, int $userid = 0) {
         return [];
     }
 
@@ -180,12 +235,18 @@ class onwaitinglist implements bo_condition {
      * @param int $userid
      * @param bool $full
      * @param bool $not
+     * @param bool $fullwidth
      * @return array
      */
-    public function render_button(booking_option_settings $settings,
-        int $userid = 0, bool $full = false, bool $not = false, bool $fullwidth = true): array {
+    public function render_button(
+        booking_option_settings $settings,
+        int $userid = 0,
+        bool $full = false,
+        bool $not = false,
+        bool $fullwidth = true
+    ): array {
 
-        $label = $this->get_description_string(false, $full);
+        $label = $this->get_description_string(false, $full, $userid, $settings);
 
         return bo_info::render_button($settings, $userid, $label, 'alert alert-warning', true, $fullwidth, 'alert', 'option');
     }
@@ -195,16 +256,38 @@ class onwaitinglist implements bo_condition {
      *
      * @param bool $isavailable
      * @param bool $full
+     * @param int $userid
+     * @param booking_option_settings $settings
      * @return string
      */
-    private function get_description_string($isavailable, $full) {
-        if ($isavailable) {
-            $description = $full ? get_string('bo_cond_onwaitinglist_full_available', 'mod_booking') :
-                get_string('bo_cond_onwaitinglist_available', 'mod_booking');
-        } else {
-            $description = $full ? get_string('bo_cond_onwaitinglist_full_not_available', 'mod_booking') :
-                get_string('bo_cond_onwaitinglist_not_available', 'mod_booking');
+    private function get_description_string($isavailable, $full, $userid, $settings) {
+
+        if (
+            !$isavailable
+            && $this->overwrittenbybillboard
+            && !empty($desc = bo_info::apply_billboard($this, $settings))
+        ) {
+            return $desc;
         }
+
+        if ($isavailable) {
+            $description = $full ? get_string('bocondonwaitinglistfullavailable', 'mod_booking') :
+                get_string('bocondonwaitinglistavailable', 'mod_booking');
+        } else {
+
+            if (get_config('booking', 'waitinglistshowplaceonwaitinglist')) {
+
+                $bookinganswer = singleton_service::get_instance_of_booking_answers($settings);
+                $placeonwaitinglist = $bookinganswer->return_place_on_waitinglist($userid);
+
+                $description = get_string('yourplaceonwaitinglist', 'mod_booking', $placeonwaitinglist);
+
+            } else {
+                $description = $full ? get_string('bocondonwaitinglistfullnotavailable', 'mod_booking') :
+                get_string('bocondonwaitinglistnotavailable', 'mod_booking');
+            }
+        }
+
         return $description;
     }
 }

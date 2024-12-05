@@ -26,9 +26,12 @@ namespace mod_booking\customfield;
 
 use core_customfield\api;
 use core_customfield\field_controller;
+use mod_booking\settings\optionformconfig\optionformconfig_info;
 use mod_booking\utils\wb_payment;
 use moodle_url;
+use context_system;
 use stdClass;
+use Throwable;
 
 /**
  * Handler for booking custom fields.
@@ -51,11 +54,11 @@ class booking_handler extends \core_customfield\handler {
     protected $parentcontext;
 
     /** @var int Field is visible to everybody */
-    const VISIBLETOALL = 2;
+    const MOD_BOOKING_VISIBLETOALL = 2;
     /** @var int Field is only for teachers */
-    const VISIBLETOTEACHERS = 1;
+    const MOD_BOOKING_VISIBLETOTEACHERS = 1;
     /** @var int Field is not displayed  */
-    const NOTVISIBLE = 0;
+    const MOD_BOOKING_NOTVISIBLE = 0;
 
     /**
      * Returns a singleton
@@ -63,7 +66,7 @@ class booking_handler extends \core_customfield\handler {
      * @param int $itemid
      * @return \mod_booking\customfield\booking_handler
      */
-    public static function create(int $itemid = 0) : \core_customfield\handler {
+    public static function create(int $itemid = 0): \core_customfield\handler {
         if (static::$singleton === null) {
             self::$singleton = new static(0);
         }
@@ -82,12 +85,31 @@ class booking_handler extends \core_customfield\handler {
     }
 
     /**
+     * Returns the customfields of the mod_booking component.
+     *
+     * @return array
+     *
+     */
+    public static function get_customfields(): array {
+        global $DB;
+
+        $sql = "SELECT cff.id, cff.name, cff.shortname, cff.configdata
+        FROM {customfield_field} cff
+        LEFT JOIN {customfield_category} cfc
+        ON cff.categoryid = cfc.id
+        WHERE cfc.component = 'mod_booking'";
+
+        $records = $DB->get_records_sql($sql);
+
+        return $records;
+    }
+
+    /**
      * Saves the given data for custom fields, must be called after the instance is saved and id is present
      *
-     *
-     * @param int $instance id received from a form
+     * @param int $instanceid id received from a form
      * @param string $shortname of a given customfield
-     * @param mixed @value new value of a given custom field
+     * @param mixed $value new value of a given custom field
      */
     public function field_save($instanceid, $shortname, $value) {
 
@@ -113,7 +135,7 @@ class booking_handler extends \core_customfield\handler {
      *
      * @return bool true if the current can configure custom fields, false otherwise
      */
-    public function can_configure() : bool {
+    public function can_configure(): bool {
         return has_capability('mod/booking:addeditownoption', $this->get_configuration_context());
     }
 
@@ -124,7 +146,7 @@ class booking_handler extends \core_customfield\handler {
      * @param int $instanceid id of the course to test edit permission
      * @return bool true if the current can edit custom fields, false otherwise
      */
-    public function can_edit(field_controller $field, int $instanceid = 0) : bool {
+    public function can_edit(field_controller $field, int $instanceid = 0): bool {
         if ($instanceid) {
             $context = $this->get_instance_context($instanceid);
             return (!$field->get_configdata_property('locked') ||
@@ -142,15 +164,43 @@ class booking_handler extends \core_customfield\handler {
     }
 
 
-    public function instance_form_definition(\MoodleQuickForm $mform, int $instanceid = 0,
-    ?string $headerlangidentifier = null, ?string $headerlangcomponent = null) {
+    /**
+     * Instance form definition
+     *
+     * @param \MoodleQuickForm $mform
+     * @param int $instanceid
+     * @param string|null $headerlangidentifier
+     * @param string|null $headerlangcomponent
+     * @param int $contextid
+     * @param array $fieldstoinstanciate
+     *
+     * @return void
+     *
+     */
+    public function instance_form_definition(
+        \MoodleQuickForm $mform,
+        int $instanceid = 0,
+        ?string $headerlangidentifier = null,
+        ?string $headerlangcomponent = null,
+        int $contextid = 0,
+        array $fieldstoinstanciate = []
+        ) {
 
         global $DB;
+
+        $uncheckedcustomfields = optionformconfig_info::get_unchecked_customfields($contextid);
 
         $editablefields = $this->get_editable_fields($instanceid);
         $fieldswithdata = api::get_instance_fields_data($editablefields, $instanceid);
         $lastcategoryid = null;
+
         foreach ($fieldswithdata as $data) {
+
+            if (in_array($data->get_field()->get('shortname'), $uncheckedcustomfields)
+                || (!empty($fieldstoinstanciate) && !in_array($data->get_field()->get('shortname'), $fieldstoinstanciate))) {
+                continue;
+            }
+
             $categoryid = $data->get_field()->get_category()->get('id');
 
             if ($categoryid != $lastcategoryid) {
@@ -161,20 +211,9 @@ class booking_handler extends \core_customfield\handler {
                     $categoryname = get_string($headerlangidentifier, $headerlangcomponent, $categoryname);
                 }
 
-                // Workaround: Only show header, if it is not turned off in the option form config.
-                // We currently need this, because hideIf does not work with headers.
-                // In expert mode, we always show everything.
-                $showheader = true;
-                $formmode = get_user_preferences('optionform_mode');
-                if ($formmode !== 'expert') {
-                    $cfgheader = $DB->get_field('booking_optionformconfig', 'active', ['elementname' => 'category_' . $categoryid]);
-                    if ($cfgheader === "0") {
-                        $showheader = false;
-                    }
-                }
-                if ($showheader) {
-                    $mform->addElement('header', 'category_' . $categoryid, $categoryname);
-                }
+                $mform->addElement('header', 'category_' . $categoryid,
+                    '<i class="fa fa-fw fa-puzzle-piece" aria-hidden="true"></i>&nbsp;' .
+                    $categoryname);
 
                 $lastcategoryid = $categoryid;
             }
@@ -198,11 +237,11 @@ class booking_handler extends \core_customfield\handler {
      * @param int $instanceid id of the course to test edit permission
      * @return bool true if the current can edit custom fields, false otherwise
      */
-    public function can_view(field_controller $field, int $instanceid) : bool {
+    public function can_view(field_controller $field, int $instanceid): bool {
         $visibility = $field->get_configdata_property('visibility');
-        if ($visibility == self::NOTVISIBLE) {
+        if ($visibility == self::MOD_BOOKING_NOTVISIBLE) {
             return false;
-        } else if ($visibility == self::VISIBLETOTEACHERS) {
+        } else if ($visibility == self::MOD_BOOKING_VISIBLETOTEACHERS) {
             return has_capability('mod/booking:addeditownoption', $this->get_instance_context($instanceid));
         } else {
             return true;
@@ -214,7 +253,7 @@ class booking_handler extends \core_customfield\handler {
      *
      * @return bool
      */
-    public function uses_categories() : bool {
+    public function uses_categories(): bool {
         return true;
     }
 
@@ -234,14 +273,14 @@ class booking_handler extends \core_customfield\handler {
      *
      * @return \context
      */
-    protected function get_parent_context() : \context {
+    protected function get_parent_context(): \context {
         global $PAGE;
         if ($this->parentcontext) {
             return $this->parentcontext;
         } else if ($PAGE->context && $PAGE->context instanceof \context_coursecat) {
             return $PAGE->context;
         }
-        return \context_system::instance();
+        return context_system::instance();
     }
 
     /**
@@ -249,17 +288,17 @@ class booking_handler extends \core_customfield\handler {
      *
      * @return \context the context for configuration
      */
-    public function get_configuration_context() : \context {
-        return \context_system::instance();
+    public function get_configuration_context(): \context {
+        return context_system::instance();
     }
 
     /**
      * URL for configuration of the fields on this handler.
      *
-     * @return \moodle_url The URL to configure custom fields for this component
+     * @return moodle_url The URL to configure custom fields for this component
      */
-    public function get_configuration_url() : \moodle_url {
-        return new \moodle_url('/mod/booking/customfield.php');
+    public function get_configuration_url(): moodle_url {
+        return new moodle_url('/mod/booking/customfield.php');
     }
 
     /**
@@ -268,8 +307,8 @@ class booking_handler extends \core_customfield\handler {
      * @param int $instanceid id of the record to get the context for
      * @return \context the context for the given record
      */
-    public function get_instance_context(int $instanceid = 0) : \context {
-            return \context_system::instance();
+    public function get_instance_context(int $instanceid = 0): \context {
+            return context_system::instance();
     }
 
     /**
@@ -286,9 +325,11 @@ class booking_handler extends \core_customfield\handler {
         $mform->addHelpButton('configdata[locked]', 'customfield_islocked', 'core_course');
 
         // Field data visibility.
-        $visibilityoptions = [self::VISIBLETOALL => get_string('customfield_visibletoall', 'core_course'),
-            self::VISIBLETOTEACHERS => get_string('customfield_visibletoteachers', 'core_course'),
-            self::NOTVISIBLE => get_string('customfield_notvisible', 'core_course')];
+        $visibilityoptions = [
+            self::MOD_BOOKING_VISIBLETOALL => get_string('customfield_visibletoall', 'core_course'),
+            self::MOD_BOOKING_VISIBLETOTEACHERS => get_string('customfield_visibletoteachers', 'core_course'),
+            self::MOD_BOOKING_NOTVISIBLE => get_string('customfield_notvisible', 'core_course'),
+        ];
         $mform->addElement('select', 'configdata[visibility]', get_string('customfield_visibility', 'core_course'),
             $visibilityoptions);
         $mform->addHelpButton('configdata[visibility]', 'customfield_visibility', 'core_course');
@@ -315,33 +356,84 @@ class booking_handler extends \core_customfield\handler {
 
         $errors = parent::instance_form_validation($data, $files);
 
-        // First, we check, if user chose to automatically create a new moodle course.
-        if (isset($data['courseid']) && $data['courseid'] == -1) {
-            if (wb_payment::pro_version_is_activated()) {
-                // URLs needed for error message.
-                $bookingcustomfieldsurl = new moodle_url('/mod/booking/customfield.php');
-                $settingsurl = new moodle_url('/admin/settings.php', ['section' => 'modsettingbooking']);
-                $a = new stdClass;
-                $a->bookingcustomfieldsurl = $bookingcustomfieldsurl->out(false);
-                $a->settingsurl = $settingsurl->out(false);
-
-                if (empty(get_config('booking', 'newcoursecategorycfield'))) {
-                    $errors['courseid'] = get_string('error:newcoursecategorycfieldmissing', 'mod_booking', $a);
-                } else {
-                    // A custom field for the category for automatically created new Moodle courses has been set.
-                    $newcoursecategorycfield = get_config('booking', 'newcoursecategorycfield');
-
-                    // So now we need to check, if a value for that custom field was set to in option form.
-                    if (empty($data["customfield_$newcoursecategorycfield"])) {
-                        $errors["customfield_$newcoursecategorycfield"] =
-                            get_string('error:coursecategoryvaluemissing', 'mod_booking');
-                    }
-                }
-            } else {
-                $errors['courseid'] = get_string('infotext:prolicensenecessary', 'mod_booking');
-            }
-        }
+        // Currently nothing to validate.
 
         return $errors;
+    }
+
+    /**
+     * When importing, we only want to load stored values when they are not present in import.
+     *
+     * Example:
+     *   $instance = $DB->get_record(...);
+     *   // .... prepare editor, filemanager, add tags, etc.
+     *   $handler->instance_form_before_set_data($instance);
+     *   $form->set_data($instance);
+     *
+     * @param stdClass $instance the instance that has custom fields, if 'id' attribute is present the custom
+     *    fields for this instance will be added, otherwise the default values will be added.
+     */
+    public function instance_form_before_set_data_on_import(stdClass $instance) {
+        $instanceid = !empty($instance->id) ? $instance->id : 0;
+        $fields = api::get_instance_fields_data($this->get_editable_fields($instanceid), $instanceid);
+
+        foreach ($fields as $formfield) {
+
+            $shortname = $formfield->get_field()->get('shortname');
+            if (isset($instance->{$shortname})) {
+                $instance->{$formfield->get_form_element_name()} = $instance->{$shortname};
+                unset($instance->{$shortname});
+            } else {
+                // If it's not set, we can go on with the stored values.
+                $formfield->instance_form_before_set_data($instance);
+            }
+        }
+    }
+
+    /**
+     * Saves the given data for custom fields, must be called after the instance is saved and id is present
+     *
+     * Example:
+     *   if ($data = $form->get_data()) {
+     *     // ... save main instance, set $data->id if instance was created.
+     *     $handler->instance_form_save($data);
+     *     redirect(...);
+     *   }
+     *
+     * @param stdClass $instance data received from a form
+     * @param bool $isnewinstance if this is call is made during instance creation
+     */
+    public function instance_form_save(stdClass $instance, bool $isnewinstance = false) {
+        if (empty($instance->id)) {
+            throw new \coding_exception('Caller must ensure that id is already set in data before calling this method');
+        }
+        if (!preg_grep('/^customfield_/', array_keys((array)$instance))) {
+            // For performance.
+            return;
+        }
+        $editablefields = $this->get_editable_fields($isnewinstance ? 0 : $instance->id);
+        $fields = api::get_instance_fields_data($editablefields, $instance->id);
+        foreach ($fields as $data) {
+            if (!$data->get('id')) {
+                $data->set('contextid', $this->get_instance_context($instance->id)->id);
+            }
+
+            // Fix for dynamic custom fields that allow multiple values (multiselect).
+            $shortname = $data->get_field()->get('shortname');
+            $multiselect = $data->get_field()->get_configdata_property('multiselect');
+            $key = "customfield_$shortname";
+            if ($multiselect == "1" && isset($instance->{$key}) && is_string($instance->{$key})) {
+                // Convert them into an array, so everything works as expected.
+                $values = explode(',', $instance->{$key});
+                $instance->{$key} = $values;
+            }
+            try {
+                $data->instance_form_save($instance);
+            } catch (Throwable $e) {
+                $donothing = true;
+            }
+
+            $elementname = $data->get_form_element_name();
+        }
     }
 }

@@ -56,7 +56,7 @@ class subbookingsform extends dynamic_form {
         $mform->addElement('hidden', 'optionid', $ajaxformdata['optionid']);
         $mform->addElement('hidden', 'cmid', $ajaxformdata['cmid']);
 
-        $mform->addElement('text', 'subbooking_name', get_string('subbooking_name', 'mod_booking'));
+        $mform->addElement('text', 'subbooking_name', get_string('subbookingname', 'mod_booking'));
         $mform->setType('subbooking_name', PARAM_TEXT);
 
         subbookings_info::add_subbooking($mform, $ajaxformdata);
@@ -92,10 +92,12 @@ class subbookingsform extends dynamic_form {
     }
 
     /**
-     * Validate dates.
+     * Form validation.
      *
-     * {@inheritdoc}
-     * @see moodleform::validation()
+     * @param array $data
+     * @param array $files
+     * @return array
+     *
      */
     public function validation($data, $files) {
         $errors = [];

@@ -18,12 +18,14 @@
  * Privacy provider implementation for mod_booking.
  *
  * @package mod_booking
- * @copyright 2018 Michael Pollak <moodle@michaelpollak.org>
+ * @copyright 2023 Wunderbyte GmbH
+ * @author Michael Pollak <moodle@michaelpollak.org>
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 namespace mod_booking\privacy;
 
+use cache_helper;
 use coding_exception;
 use context;
 use context_module;
@@ -38,6 +40,14 @@ use dml_exception;
 use mod_booking\teachers_handler;
 use stdClass;
 
+/**
+ * Class privacy provider implementation for mod_booking.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH
+ * @author Michael Pollak <moodle@michaelpollak.org>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 class provider implements
     // This plugin stores personal data.
     \core_privacy\local\metadata\provider,
@@ -53,7 +63,7 @@ class provider implements
      * @param collection $collection a reference to the collection to use to store the metadata.
      * @return collection the updated collection of metadata items.
      */
-    public static function get_metadata(collection $collection) : collection {
+    public static function get_metadata(collection $collection): collection {
 
         $collection->add_database_table(
             'booking_answers',
@@ -116,6 +126,46 @@ class provider implements
             'privacy:metadata:booking_userevents'
         );
 
+        $collection->add_database_table(
+            'booking_optiondates_teachers',
+            [
+                'optiondateid' => 'privacy:metadata:booking_optiondates_teachers:optiondateid',
+                'userid' => 'privacy:metadata:booking_optiondates_teachers:userid',
+            ],
+            'privacy:metadata:booking_optiondates_teachers'
+        );
+
+        $collection->add_database_table(
+            'booking_subbooking_answers',
+            [
+                'itemid' => 'privacy:metadata:booking_subbooking_answers:itemid',
+                'optionid' => 'privacy:metadata:booking_subbooking_answers:optionid',
+                'sboptionid' => 'privacy:metadata:booking_subbooking_answers:sboptionid',
+                'userid' => 'privacy:metadata:booking_subbooking_answers:userid',
+                'usermodified' => 'privacy:metadata:booking_subbooking_answers:usermodified',
+                'json' => 'privacy:metadata:booking_subbooking_answers:json',
+                'timestart' => 'privacy:metadata:booking_subbooking_answers:timestart',
+                'timeend' => 'privacy:metadata:booking_subbooking_answers:timeend',
+                'status' => 'privacy:metadata:booking_subbooking_answers:status',
+                'timecreated' => 'privacy:metadata:booking_subbooking_answers:timecreated',
+                'timemodified' => 'privacy:metadata:booking_subbooking_answers:timemodified',
+            ],
+            'privacy:metadata:booking_subbooking_answers'
+        );
+
+        $collection->add_database_table(
+            'booking_odt_deductions',
+            [
+                'optiondateid' => 'privacy:metadata:booking_odt_deductions:optiondateid',
+                'userid' => 'privacy:metadata:booking_odt_deductions:userid',
+                'reason' => 'privacy:metadata:booking_odt_deductions:reason',
+                'usermodified' => 'privacy:metadata:booking_odt_deductions:usermodified',
+                'timecreated' => 'privacy:metadata:booking_odt_deductions:timecreated',
+                'timemodified' => 'privacy:metadata:booking_odt_deductions:timemodified',
+            ],
+            'privacy:metadata:booking_odt_deductions'
+        );
+
         return $collection;
     }
 
@@ -125,7 +175,7 @@ class provider implements
      * @param int $userid the userid.
      * @return contextlist the list of contexts containing user info for the user.
      */
-    public static function get_contexts_for_userid(int $userid) : contextlist {
+    public static function get_contexts_for_userid(int $userid): contextlist {
 
         // Add if the user booked an event.
         $sql = "SELECT c.id
@@ -425,6 +475,7 @@ class provider implements
         $DB->delete_records_select('booking_answers', $select, $params);
         $DB->delete_records_select('booking_teachers', $select, $params);
         $DB->delete_records_select('booking_optiondates_teachers', $select, $params);
+        cache_helper::purge_by_event('setbackcachedteachersjournal');
         $DB->delete_records_select('booking_userevents', $select, $params);
         $DB->delete_records_select('booking_ratings', $select, $params);
         $DB->delete_records_select('booking_icalsequence', $select, $params);

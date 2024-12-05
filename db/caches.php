@@ -24,76 +24,122 @@
 
 defined('MOODLE_INTERNAL') || die;
 
-$definitions = array(
-    'cachedbookinginstances' => array(
+$definitions = [
+    'cachedbookinginstances' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 10,
+        'invalidationevents' => ['setbackbookinginstances'],
+    ],
+    'cachedprices' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 100,
+        'invalidationevents' => ['setbackprices'],
+    ],
+    'cachedpricecategories' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => false,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 10,
+        'invalidationevents' => ['setbackpricecategories'],
+    ],
+    'cachedsemesters' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 10,
+        'invalidationevents' => ['setbacksemesters'],
+    ],
+    'cachedteachersjournal' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 10,
+        'invalidationevents' => ['setbackcachedteachersjournal'],
+    ],
+    'bookingoptionstable' => [ // This cache uses hashed sql queries as keys.
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 100,
+        'invalidationevents' => ['setbackoptionstable', 'setbackencodedtables'],
+    ],
+    'mybookingoptionstable' => [ // This cache uses hashed sql queries as keys. We destroy it when a user has booked.
+        'mode' => cache_store::MODE_SESSION,
+        'simplekeys' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 100,
+        'invalidationevents' => [
+            'setbackmyoptionstable',
+            'setbackmyencodedtables',
+            'setbackoptionstable',
+            'setbackencodedtables',
+        ],
+    ],
+    'bookingoptionsettings' => [ // This cache uses optionids as keys.
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 1000,
+        'invalidationevents' => ['setbackoptionsettings'],
+    ],
+    'bookingoptionsanswers' => [ // This cache uses optionids as keys.
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 1000,
+        'invalidationevents' => ['setbackoptionsanswers'],
+    ],
+    'bookedusertable' => [ // This cache uses optionids as keys.
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 1000,
+        'invalidationevents' => ['setbackbookedusertable'],
+    ],
+    'subbookingforms' => [ // This cache uses optionids as keys.
         'mode' => cache_store::MODE_APPLICATION,
         'simplekeys' => true,
         'staticacceleration' => true,
         'staticaccelerationsize' => 1,
-        'invalidationevents' => ['setbackbookinginstances']
-    ),
-    'cachedprices' => array(
+        'invalidationevents' => ['setbacksubbookingforms'],
+    ],
+    'conditionforms' => [ // This cache uses optionids as keys.
         'mode' => cache_store::MODE_APPLICATION,
         'simplekeys' => true,
         'staticacceleration' => true,
         'staticaccelerationsize' => 1,
-        'invalidationevents' => ['setbackprices']
-    ),
-    'cachedpricecategories' => array(
+        'invalidationevents' => ['setbackconditionforms'],
+    ],
+    // The cache is used to confirm bookings.
+    'confirmbooking' => [ // This cache uses optionids as keys.
         'mode' => cache_store::MODE_APPLICATION,
         'simplekeys' => true,
         'staticacceleration' => true,
         'staticaccelerationsize' => 1,
-        'invalidationevents' => ['setbackpricecategories']
-    ),
-    'cachedsemesters' => array(
+        'invalidationevents' => ['setbackconfirms'],
+    ],
+    'electivebookingorder' => [
+        'mode' => cache_store::MODE_SESSION,
+        'simplekeys' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 1,
+        'invalidationevents' => ['setbackelectivelist'],
+    ],
+    'customformuserdata' => [ // We don't support general invalidation event in this cache. Use userid-optionid as keys.
+        'mode' => cache_store::MODE_APPLICATION, // In order support buy for others, we need to make this MODE_APPLICATION cache.
+        'simplekeys' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 1,
+    ],
+    'eventlogtable' => [
         'mode' => cache_store::MODE_APPLICATION,
         'simplekeys' => true,
         'staticacceleration' => true,
         'staticaccelerationsize' => 1,
-        'invalidationevents' => ['setbacksemesters']
-    ),
-    'bookingoptionstable' => array( // This cache uses hased sql queries as keys.
-        'mode' => cache_store::MODE_APPLICATION,
-        'simplekeys' => true,
-        'staticacceleration' => true,
-        'staticaccelerationsize' => 1,
-        'invalidationevents' => ['setbackoptionstable']
-    ),
-    'bookingoptionsettings' => array( // This cache uses optionids as keys.
-        'mode' => cache_store::MODE_APPLICATION,
-        'simplekeys' => true,
-        'staticacceleration' => true,
-        'staticaccelerationsize' => 1,
-        'invalidationevents' => ['setbackoptionsettings']
-    ),
-    'bookingoptionsanswers' => array( // This cache uses optionids as keys.
-        'mode' => cache_store::MODE_APPLICATION,
-        'simplekeys' => true,
-        'staticacceleration' => true,
-        'staticaccelerationsize' => 1,
-        'invalidationevents' => ['setbackoptionsanswers']
-    ),
-    'subbookingforms' => array( // This cache uses optionids as keys.
-        'mode' => cache_store::MODE_APPLICATION,
-        'simplekeys' => true,
-        'staticacceleration' => true,
-        'staticaccelerationsize' => 1,
-        'invalidationevents' => ['setbacksubbookingforms']
-    ),
-    'conditionforms' => array( // This cache uses optionids as keys.
-        'mode' => cache_store::MODE_APPLICATION,
-        'simplekeys' => true,
-        'staticacceleration' => true,
-        'staticaccelerationsize' => 1,
-        'invalidationevents' => ['setbackconditionforms']
-    ),
-    'confirmbooking' => array( // This cache uses optionids as keys.
-        'mode' => cache_store::MODE_APPLICATION,
-        'simplekeys' => true,
-        'staticacceleration' => true,
-        'staticaccelerationsize' => 1,
-        'invalidationevents' => ['setbackconfirms']
-    )
-);
-
+        'invalidationevents' => ['setbackeventlogtable'],
+    ],
+];

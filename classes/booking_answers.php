@@ -14,8 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * Booking answers class.
+ *
+ * @package mod_booking
+ * @copyright 2022 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Georg Maißer
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace mod_booking;
 
+use context_system;
+use dml_exception;
+use mod_booking\bo_availability\conditions\customform;
 use mod_booking\singleton_service;
 
 defined('MOODLE_INTERNAL') || die();
@@ -23,7 +35,9 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot . '/mod/booking/lib.php');
 
 /**
- * Class for booking answers. An instance is linked to one specific option.
+ * Class for booking answers.
+ *
+ * An instance is linked to one specific option.
  * But the class provides static functions to get information about a users answers for the whole instance as well.
  *
  * @package mod_booking
@@ -62,16 +76,17 @@ class booking_answers {
 
     /**
      * Constructor for the booking answers class.
+     *
      * The booking answers class is instantiated for all users alike.
      * But it returns information for the individual users.
      *
-     * STATUSPARAM_BOOKED (0) ... user has booked the option
-     * STATUSPARAM_WAITINGLIST (1) ... user is on the waiting list
-     * STATUSPARAM_RESERVED (2) ... user is on the waiting list
-     * STATUSPARAM_NOTBOOKED (4) ... user has not booked the option
-     * STATUSPARAM_DELETED (5) ... user answer was deleted
+     * MOD_BOOKING_STATUSPARAM_BOOKED (0) ... user has booked the option
+     * MOD_BOOKING_STATUSPARAM_WAITINGLIST (1) ... user is on the waiting list
+     * MOD_BOOKING_STATUSPARAM_RESERVED (2) ... user is on the waiting list
+     * MOD_BOOKING_STATUSPARAM_NOTBOOKED (4) ... user has not booked the option
+     * MOD_BOOKING_STATUSPARAM_DELETED (5) ... user answer was deleted
      *
-     * @param int $optionid Booking option id.
+     * @param booking_option_settings $bookingoptionsettings
      * @throws dml_exception
      */
     public function __construct(booking_option_settings $bookingoptionsettings) {
@@ -86,8 +101,7 @@ class booking_answers {
         $data = $cache->get($optionid);
 
         if (!$data) {
-
-            $params = array('optionid' => $optionid);
+            $params = ['optionid' => $optionid];
 
             if ($CFG->version >= 2021051700) {
                 // This only works in Moodle 3.11 and later.
@@ -107,12 +121,20 @@ class booking_answers {
             ORDER BY ba.timecreated ASC"; */
 
             $sql = "SELECT
-                ba.id as baid, ba.userid as id, ba.userid,
-                ba.waitinglist, ba.completed,
-                ba.timecreated, ba.optionid
+                ba.id as baid,
+                ba.userid as id,
+                ba.userid,
+                ba.waitinglist,
+                ba.completed,
+                ba.timemodified,
+                ba.optionid,
+                ba.timecreated,
+                ba.json,
+                ba.places
             FROM {booking_answers} ba
             WHERE ba.optionid = :optionid
-            ORDER BY ba.timecreated ASC";
+            AND ba.waitinglist < 5
+            ORDER BY ba.timemodified ASC";
 
             $answers = $DB->get_records_sql($sql, $params);
 
@@ -129,31 +151,31 @@ class booking_answers {
             $this->answers = $answers;
 
             foreach ($answers as $answer) {
-
+                $answer = customform::append_customform_elements($answer);
                 // A user might have one or more 'deleted' entries, but else, there should be only one.
-                if ($answer->waitinglist != STATUSPARAM_DELETED) {
+                if ($answer->waitinglist != MOD_BOOKING_STATUSPARAM_DELETED) {
                     $this->users[$answer->userid] = $answer;
                 }
 
                 switch ($answer->waitinglist) {
-                    case STATUSPARAM_BOOKED:
+                    case MOD_BOOKING_STATUSPARAM_BOOKED:
                         $this->usersonlist[$answer->userid] = $answer;
                         break;
-                    case STATUSPARAM_WAITINGLIST:
+                    case MOD_BOOKING_STATUSPARAM_WAITINGLIST:
                         $this->usersonwaitinglist[$answer->userid] = $answer;
                         break;
-                    case STATUSPARAM_RESERVED:
-                        if (count($this->usersonlist) < $this->bookingoptionsettings->maxanswers) {
+                    case MOD_BOOKING_STATUSPARAM_RESERVED:
+                        if (self::count_places($this->usersonlist) < $this->bookingoptionsettings->maxanswers) {
                             $this->usersonlist[$answer->userid] = $answer;
                         } else {
                             $this->usersonwaitinglist[$answer->userid] = $answer;
                         }
                         $this->usersreserved[$answer->userid] = $answer;
                         break;
-                    case STATUSPARAM_DELETED:
+                    case MOD_BOOKING_STATUSPARAM_DELETED:
                         $this->usersdeleted[$answer->userid] = $answer;
                         break;
-                    case STATUSPARAM_NOTIFYMELIST:
+                    case MOD_BOOKING_STATUSPARAM_NOTIFYMELIST:
                         $this->userstonotify[$answer->userid] = $answer;
                         break;
                 }
@@ -186,7 +208,7 @@ class booking_answers {
      * The return value of this function is not equal to the former user_status in booking_option.
      *
      * @param int $userid
-     * @return int const STATUSPARAM_* for booking status.
+     * @return int const MOD_BOOKING_STATUSPARAM_* for booking status.
      */
     public function user_status(int $userid = 0) {
         global $USER;
@@ -196,15 +218,15 @@ class booking_answers {
         }
 
         if (isset($this->usersreserved[$userid])) {
-            return STATUSPARAM_RESERVED;
+            return MOD_BOOKING_STATUSPARAM_RESERVED;
         } else if (isset($this->userstonotify[$userid])) {
-            return STATUSPARAM_NOTIFYMELIST;
+            return MOD_BOOKING_STATUSPARAM_NOTIFYMELIST;
         } else if (isset($this->usersonwaitinglist[$userid])) {
-            return STATUSPARAM_WAITINGLIST;
+            return MOD_BOOKING_STATUSPARAM_WAITINGLIST;
         } else if (isset($this->usersonlist[$userid])) {
-            return STATUSPARAM_BOOKED;
+            return MOD_BOOKING_STATUSPARAM_BOOKED;
         } else {
-            return STATUSPARAM_NOTBOOKED;
+            return MOD_BOOKING_STATUSPARAM_NOTBOOKED;
         }
     }
 
@@ -236,16 +258,16 @@ class booking_answers {
      * - booked
      * - onwaitinglist
      *
-     * @param integer $userid
+     * @param int $userid
      * @return array
      */
     public function return_all_booking_information(int $userid) {
 
         $returnarray = [];
 
-        $returnarray['waiting'] = count($this->usersonwaitinglist);
-        $returnarray['booked'] = count($this->usersonlist);
-        $returnarray['reserved'] = count($this->usersreserved);
+        $returnarray['waiting'] = self::count_places($this->usersonwaitinglist);
+        $returnarray['booked'] = self::count_places($this->usersonlist);
+        $returnarray['reserved'] = self::count_places($this->usersreserved);
 
         $returnarray['onnotifylist'] = $this->user_on_notificationlist($userid);
 
@@ -265,10 +287,10 @@ class booking_answers {
             $returnarray['fullybooked'] = false;
         }
 
-        if ($this->bookingoptionsettings->maxoverbooking != 0) {
-            $returnarray['maxoverbooking'] = $this->bookingoptionsettings->maxoverbooking;
-
-            $returnarray['freeonwaitinglist'] = $returnarray['maxoverbooking'] - $returnarray['waiting'];
+        $maxoverbooking = $this->bookingoptionsettings->maxoverbooking ?? 0;
+        if ($maxoverbooking > 0) {
+            $returnarray['maxoverbooking'] = $maxoverbooking;
+            $returnarray['freeonwaitinglist'] = $maxoverbooking - $returnarray['waiting'];
         }
 
         if (!empty($this->bookingoptionsettings->minanswers) && $this->bookingoptionsettings->minanswers > 0) {
@@ -276,27 +298,57 @@ class booking_answers {
         }
 
         // First check list of booked users.
-        if (isset($this->usersonlist[$userid]) && $this->usersonlist[$userid]->waitinglist == STATUSPARAM_BOOKED) {
-            $returnarray = array('iambooked' => $returnarray);
-        } else if (isset($this->usersreserved[$userid]) && $this->usersreserved[$userid]->waitinglist == STATUSPARAM_RESERVED) {
-            $returnarray = array('iamreserved' => $returnarray);
+        if (isset($this->usersonlist[$userid]) && $this->usersonlist[$userid]->waitinglist == MOD_BOOKING_STATUSPARAM_BOOKED) {
+
+            $answer = $this->usersonlist[$userid];
+            if (!empty($answer->json)) {
+                $jsonobject = json_decode($answer->json);
+
+                if (!empty($jsonobject->paidwithcredits)) {
+                    $returnarray['paidwithcredits'] = true;
+                }
+            }
+
+            $returnarray = ['iambooked' => $returnarray];
+        } else if (isset($this->usersreserved[$userid])
+            && $this->usersreserved[$userid]->waitinglist == MOD_BOOKING_STATUSPARAM_RESERVED) {
+            $returnarray = ['iamreserved' => $returnarray];
         } else if (isset($this->usersonwaitinglist[$userid]) &&
-            $this->usersonwaitinglist[$userid]->waitinglist == STATUSPARAM_WAITINGLIST) {
+            $this->usersonwaitinglist[$userid]->waitinglist == MOD_BOOKING_STATUSPARAM_WAITINGLIST) {
             // Now check waiting list.
-            $returnarray = array('onwaitinglist' => $returnarray);
+            $returnarray = ['onwaitinglist' => $returnarray];
         } else {
             // Else it's not booked.
-            $returnarray = array('notbooked' => $returnarray);
+            $returnarray = ['notbooked' => $returnarray];
         }
 
         return $returnarray;
     }
 
     /**
+     * Returns place on waiting list of user.
+     * -1 if not on list.
+     * @param int $userid
+     * @return int
+     */
+    public function return_place_on_waitinglist(int $userid) {
+
+        $index = 0;
+        foreach ($this->usersonwaitinglist as $key => $user) {
+            $index++;
+            if ($userid == $key) {
+                return $index;
+            }
+        }
+
+        return -1;
+    }
+
+    /**
      * Verify if a user is actually on the booked list or not.
      *
-     * @param integer $userid
-     * @return void
+     * @param int $userid
+     * @return bool
      */
     public function user_on_notificationlist(int $userid) {
 
@@ -319,23 +371,39 @@ class booking_answers {
 
     /**
      * Returns the number of active bookings for a given user for the whole instance.
+     * This is not cached!
      *
-     * @param integer $userid
-     * @param integer $bookingid not cmid
-     * @return integer
+     * @param int $userid
+     * @param int $bookingid not cmid
+     * @return int
      */
     public static function number_of_active_bookings_for_user(int $userid, int $bookingid) {
         global $DB;
 
-        $params = ['statuswaitinglist' => STATUSPARAM_WAITINGLIST,
-                   'bookingid' => $bookingid,
-                   'userid' => $userid];
+        $params = [
+            'statuswaitinglist' => MOD_BOOKING_STATUSPARAM_WAITINGLIST,
+            'bookingid' => $bookingid,
+            'userid' => $userid,
+        ];
 
-        $sql = "SELECT COUNT(*)
-                FROM {booking_answers}
-                WHERE waitinglist <= :statuswaitinglist
-                AND bookingid = :bookingid
-                AND userid = :userid";
+        $sql = "SELECT COUNT(ba.id) cnt
+                FROM {booking_answers} ba
+                JOIN {booking_options} bo
+                ON bo.id = ba.optionid
+                WHERE ba.waitinglist <= :statuswaitinglist
+                AND ba.bookingid = :bookingid
+                AND ba.userid = :userid";
+
+        if (get_config('booking', 'maxperuserdontcountpassed')) {
+            $params['now'] = time();
+            $sql .= " AND (bo.courseendtime > :now OR bo.courseendtime IS NULL OR bo.courseendtime = 0)";
+        }
+        if (get_config('booking', 'maxperuserdontcountcompleted')) {
+            $sql .= " AND ba.completed = 0 AND ba.status NOT IN (1,6)";
+        }
+        if (get_config('booking', 'maxperuserdontcountnoshow')) {
+            $sql .= " AND ba.status <> 3";
+        }
 
         return $DB->count_records_sql($sql, $params);
     }
@@ -343,9 +411,9 @@ class booking_answers {
     /**
      * Uncached function to get booking status of user regarding the subbooking.
      *
-     * @param integer $subbookingid
-     * @param integer $userid
-     * @return integer
+     * @param int $subbookingid
+     * @param int $userid
+     * @return int
      */
     public function subbooking_user_status(int $subbookingid, int $userid = 0) {
         global $DB;
@@ -359,14 +427,202 @@ class booking_answers {
         $params = [
             'subbookingid' => $subbookingid,
             'optionid' => $this->optionid,
-            'statusparam' => STATUSPARAM_RESERVED,
+            'statusparam' => MOD_BOOKING_STATUSPARAM_RESERVED,
         ];
 
         if ($record = $DB->get_record_sql($sql, $params)) {
             return $record->status;
         } else {
-            return STATUSPARAM_NOTBOOKED;
+            return MOD_BOOKING_STATUSPARAM_NOTBOOKED;
         }
     }
 
+    /**
+     * Helper function to add availability info texts for available places and waiting list.
+     *
+     * @param  array $bookinginformation reference to booking information array.
+     *
+     * @return void
+     */
+    public static function add_availability_info_texts_to_booking_information(array &$bookinginformation) {
+        // PRO feature: Availability info texts for booking places and waiting list.
+        // Booking places.
+        $context = context_system::instance();
+
+        if (
+            !empty($bookinginformation['maxanswers'])
+        ) {
+            if (
+                !has_capability('mod/booking:updatebooking', $context)
+                && get_config('booking', 'bookingplacesinfotexts')
+            ) {
+                $bookinginformation['showbookingplacesinfotext'] = true;
+            }
+
+            $bookingplaceslowpercentage = get_config('booking', 'bookingplaceslowpercentage');
+            $actualpercentage = ($bookinginformation['freeonlist'] / $bookinginformation['maxanswers']) * 100;
+
+            if ($bookinginformation['freeonlist'] == 0) {
+                // No places left.
+                $bookinginformation['bookingplacesinfotext'] = get_string('bookingplacesfullmessage', 'mod_booking');
+                $bookinginformation['bookingplacesclass'] = 'text-danger fullavail';
+                $bookinginformation['bookingplacesiconclass'] = 'fullavail';
+            } else if ($actualpercentage <= $bookingplaceslowpercentage) {
+                // Only a few places left.
+                $bookinginformation['bookingplacesinfotext'] = get_string('bookingplaceslowmessage', 'mod_booking');
+                $bookinginformation['bookingplacesclass'] = 'text-danger lowavail';
+                $bookinginformation['bookingplacesiconclass'] = 'lowavail';
+            } else {
+                // Still enough places left.
+                $bookinginformation['bookingplacesinfotext'] = get_string('bookingplacesenoughmessage', 'mod_booking');
+                $bookinginformation['bookingplacesclass'] = 'text-success avail';
+                $bookinginformation['bookingplacesiconclass'] = 'avail';
+            }
+        }
+        // Waiting list places.
+        if (
+            !empty($bookinginformation['maxoverbooking'])
+        ) {
+
+            if (!has_capability('mod/booking:updatebooking', $context)
+                && get_config('booking', 'waitinglistinfotexts')
+            ) {
+                $bookinginformation['showwaitinglistplacesinfotext'] = true;
+            }
+
+            $waitinglistlowpercentage = get_config('booking', 'waitinglistlowpercentage');
+            $actualwlpercentage = ($bookinginformation['freeonwaitinglist'] /
+                $bookinginformation['maxoverbooking']) * 100;
+
+            if ($bookinginformation['freeonwaitinglist'] == 0) {
+                // No places left.
+                $bookinginformation['waitinglistplacesinfotext'] = get_string('waitinglistfullmessage', 'mod_booking');
+                $bookinginformation['waitinglistplacesclass'] = 'text-danger';
+            } else if ($actualwlpercentage <= $waitinglistlowpercentage) {
+                // Only a few places left.
+                $bookinginformation['waitinglistplacesinfotext'] = get_string('waitinglistlowmessage', 'mod_booking');
+                $bookinginformation['waitinglistplacesclass'] = 'text-danger';
+            } else {
+                // Still enough places left.
+                $bookinginformation['waitinglistplacesinfotext'] = get_string('waitinglistenoughmessage', 'mod_booking');
+                $bookinginformation['waitinglistplacesclass'] = 'text-success';
+            }
+        }
+    }
+
+    /**
+     * Check if the booking option is already fully booked.
+     * @return bool
+     */
+    public function is_fully_booked() {
+
+        // If booking option is unlimited, we always return false.
+        if (empty($this->bookingoptionsettings->maxanswers)) {
+            return false;
+        }
+
+        if (self::count_places($this->usersonlist) >= $this->bookingoptionsettings->maxanswers) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Check if the booking option is already fully booked.
+     * @return bool
+     */
+    public function is_fully_booked_on_waitinglist() {
+
+        // If booking option is unlimited, we always return false.
+        if (empty($this->bookingoptionsettings->maxoverbooking)) {
+            return false;
+        }
+
+        if (self::count_places($this->usersonwaitinglist) >= $this->bookingoptionsettings->maxoverbooking) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Function to return the number of active bookings of a user.
+     * Optionally for booking opitons with a given teacher.
+     * @param int $userid
+     * @param int $teacherid
+     * @return int
+     * @throws dml_exception
+     */
+    public static function number_actively_booked(int $userid, int $teacherid = 0) {
+
+        global $DB;
+
+        $params = [
+            'userid' => $userid,
+            'teacherid' => $teacherid,
+        ];
+
+        $where = !empty($teacherid) ? " AND bt.userid = :teacherid " : "";
+
+        $sql = "SELECT COUNT(ba.id)
+                FROM {booking_answers} ba
+                JOIN {booking_teachers} bt ON ba.optionid=bt.optionid
+                WHERE ba.waitinglist = 0
+                AND ba.userid = :userid
+                $where";
+
+        return $DB->count_records_sql($sql, $params);
+    }
+
+    /**
+     * Returns the sql to fetch booked users with a certain status.
+     * Orderd by timemodified, to be able to sort them.
+     * @param int $optionid
+     * @param int $statusparam
+     * @return (string|int[])[]
+     */
+    public static function return_sql_for_booked_users(int $optionid, int $statusparam) {
+        // We need to set a limit for the query in mysqlfamily.
+        $fields = 's1.*, ROW_NUMBER() OVER (ORDER BY s1.timemodified, s1.id DESC) AS rank';
+        $from = " (SELECT ba.id,
+                          u.id as userid,
+                          u.firstname,
+                          u.lastname,
+                          u.email,
+                          ba.timemodified,
+                          ba.timecreated,
+                          ba.optionid,
+                          ba.json
+                    FROM {booking_answers} ba
+                    JOIN {user} u ON ba.userid = u.id
+                    WHERE ba.optionid=:optionid AND ba.waitinglist=:statusparam
+                    ORDER BY ba.timemodified, ba.id ASC
+                    LIMIT 10000000000
+                    ) s1";
+        $where = '1=1';
+        $params = [
+            'optionid' => $optionid,
+            'statusparam' => $statusparam,
+        ];
+
+        return [$fields, $from, $where, $params];
+    }
+
+    /**
+     * Function to sum up places value.
+     * If no places key is found, we use 1.
+     *
+     * @param array $users
+     *
+     * @return int
+     *
+     */
+    public static function count_places(array $users) {
+        $sum = array_reduce($users, function ($carry, $item) {
+            return $carry + ($item->places ?? 1);
+        }, 0);
+
+        return $sum;
+    }
 }

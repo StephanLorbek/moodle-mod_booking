@@ -22,7 +22,8 @@ use mod_booking\subscriber_selector_base;
  * A user selector control for potential subscribers to the selected booking
  *
  * @package mod_booking
- * @copyright 2014 Andraž Prinčič
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Andraž Prinčič
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class potential_subscriber_selector extends subscriber_selector_base {
@@ -36,8 +37,10 @@ class potential_subscriber_selector extends subscriber_selector_base {
 
     /**
      * Can be used to store existing subscribers so that they can be removed from the potential subscribers list
+     *
+     * @var array
      */
-    protected $existingsubscribers = array();
+    protected $existingsubscribers = [];
 
     /**
      * Constructor method
@@ -74,7 +77,7 @@ class potential_subscriber_selector extends subscriber_selector_base {
     public function find_users($search) {
         global $DB;
 
-        $whereconditions = array();
+        $whereconditions = [];
 
         list($wherecondition, $params) = $this->search_sql($search, 'u');
         if ($wherecondition) {
@@ -84,7 +87,7 @@ class potential_subscriber_selector extends subscriber_selector_base {
         $whereconditions[] = 'u.suspended = 0';
 
         if (!$this->forcesubscribed) {
-            $existingids = array();
+            $existingids = [];
             foreach ($this->existingsubscribers as $group) {
                 foreach ($group as $user) {
                     $existingids[$user->id] = 1;
@@ -124,13 +127,13 @@ class potential_subscriber_selector extends subscriber_selector_base {
                 array_merge($params, $sortparams));
 
         if (empty($availableusers)) {
-            return array();
+            return [];
         }
 
         if ($this->forcesubscribed) {
-            return array(get_string("existingsubscribers", 'booking') => $availableusers);
+            return [get_string("existingsubscribers", 'booking') => $availableusers];
         } else {
-            return array(get_string("potentialsubscribers", 'booking') => $availableusers);
+            return [get_string("potentialsubscribers", 'booking') => $availableusers];
         }
     }
 
@@ -145,6 +148,11 @@ class potential_subscriber_selector extends subscriber_selector_base {
 
     /**
      * Sets this booking as force subscribed or not
+     *
+     * @param bool $setting
+     *
+     * @return void
+     *
      */
     public function set_force_subscribed($setting = true) {
         $this->forcesubscribed = true;

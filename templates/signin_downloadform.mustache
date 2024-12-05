@@ -54,28 +54,32 @@
 	}
 
 }}
-<div class="card"  style="display: none;" id="signinsheet">
+<div class="card hidden mt-3 mb-5" id="signinsheet" aria-hidden="true">
     <form data-region="booking-download-signinsheet-form" method="get" action="{{baseurl}}">
-		<div class="card-header"><h5 class="card-title">{{#str}}sign_in_sheet_download, mod_booking{{/str}}</h5></div>
+		<div class="card-header">
+			<h5 class="card-title mb-0">
+				<i class="fa fa-list fa-fw" aria-hidden="true"></i>&nbsp;{{#str}}signinsheetconfigure, mod_booking{{/str}}
+			</h5>
+		</div>
 	    <div class="card-body p-y-4">
 		    <input name="optionid" type="hidden" value="{{optionid}}">
 		    <input name="id" type="hidden" value="{{id}}">
-		    <input name="action" type="hidden" value="downloadpdf">
+		    <input name="action" type="hidden" value="downloadsigninsheet">
 		    <div class="container-fluid">
 			    <div class="row p-y-1 mt-3">
 				    <div class="col-md-4 span4 col-4">
-					    <input id="signin-landscape" checked="checked" type="radio" class="m-r-1" name="orientation" value="L"/><label for="signin-landscape">{{#str}}pdflandscape, mod_booking{{/str}}</label><br>
-					    <input id="signin-portrait" type="radio" class="m-r-1" name="orientation" value="P"/><label for="signin-portrait">{{#str}}pdfportrait, mod_booking{{/str}}</label><br>
+						<input id="signin-portrait" checked="checked" type="radio" class="m-r-1" name="orientation" value="P"><label for="signin-portrait">{{#str}}pdfportrait, mod_booking{{/str}}</label><br>
+					    <input id="signin-landscape" type="radio" class="m-r-1" name="orientation" value="L"><label for="signin-landscape">{{#str}}pdflandscape, mod_booking{{/str}}</label><br>
 				    </div>
 				    <div class="col-md-4 span4 col-4">
-					    <input id="signin-sort-firstname" checked="checked" type="radio" class="m-r-1" name="orderby" value="firstname"/><label for="signin-sort-firstname">{{#str}}sortbyfirstname, grades{{/str}}</label><br>
-					    <input id="signin-sort-lastname" type="radio" class="m-r-1" name="orderby" value="lastname"/><label for="signin-sort-lastname">{{#str}}sortbylastname, grades{{/str}}</label><br>
+						<input id="signin-sort-lastname" checked="checked" type="radio" class="m-r-1" name="orderby" value="lastname"><label for="signin-sort-lastname">{{#str}}sortbylastname, grades{{/str}}</label><br>
+					    <input id="signin-sort-firstname" type="radio" class="m-r-1" name="orderby" value="firstname"><label for="signin-sort-firstname">{{#str}}sortbyfirstname, grades{{/str}}</label><br>
 					</div>
 					<div class="col-md-4 span4 col-4">
-						<label for="addemptyrows">{{#str}}signinaddemptyrows, mod_booking{{/str}}</label>
+						<label for="signin-addemptyrows">{{#str}}signinaddemptyrows, mod_booking{{/str}}</label>
 						<div>
 							<select name="addemptyrows" id="signin-addemptyrows" class="custom-select">
-								<option value="0">0</option>
+								<option value="0" selected>0</option>
 								<option value="1">1</option>
 								<option value="2">2</option>
 								<option value="3">3</option>
@@ -98,7 +102,7 @@
 					    <label for="signin-pdftitle">{{#str}}choosepdftitle, mod_booking{{/str}}</label>
 					    <div>
 						    <select name="pdftitle" id="signin-pdftitle" class="custom-select">
-						        <option value="1">{{titleinstanceoption}}</option>
+						        <option value="1" selected>{{titleinstanceoption}}</option>
 						        <option value="2">{{titleoption}}</option>
 						        <option value="3">{{instanceoption}}</option>
 						    </select>
@@ -110,7 +114,7 @@
 						    <select name="pdfsessions" id="signin-onesession" class="custom-select">
 								<option value="0">{{#str}} all {{/str}}</option>
 								<option value="-1">{{#str}} signinadddatemanually, booking {{/str}}</option>
-								<option value="-2">{{#str}} signinhidedate, booking {{/str}}</option>
+								<option value="-2" selected>{{#str}} signinhidedate, booking {{/str}}</option>
 						        {{#sessions}}
 						        <option value="{{id}}">{{coursestarttime}} - {{courseendtime}}</option>
 						        {{/sessions}}
@@ -130,7 +134,7 @@
 					    <div>
 						    <select name="signinextrasessioncols" id="signinextrasessioncols" class="custom-select">
 								<option value="-1">{{#str}}none{{/str}}</option>
-								<option value="0">{{#str}}all{{/str}}</option>
+								<option value="0" selected>{{#str}}all{{/str}}</option>
 						        {{#sessions}}
 						        <option value="{{id}}">{{sessiondateonly}}</option>
 						        {{/sessions}}
@@ -140,6 +144,10 @@
 				</div>
 		    </div>
 		</div>
-		<div class="card-footer"><button type="submit" class="btn btn-primary" name="downloadpdf">{{#str}} download {{/str}}</button></div>
+		<div class="card-footer">
+			<button type="submit" class="btn btn-primary btn-sm" name="downloadsigninsheet">
+				<i class="fa fa-download fa-fw" aria-hidden="true"></i>&nbsp;{{#str}} signinsheetdownload, mod_booking {{/str}}
+			</button>
+		</div>
 	</form>
 </div>

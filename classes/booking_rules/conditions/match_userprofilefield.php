@@ -40,6 +40,9 @@ class match_userprofilefield implements booking_rule_condition {
     /** @var string $rulename */
     public $conditionname = 'match_userprofilefield';
 
+    /** @var string $conditionnamestringid Id of localized string for name of rule condition*/
+    protected $conditionnamestringid = 'matchuserprofilefield';
+
     /** @var string $cpfield */
     public $cpfield = null;
 
@@ -48,6 +51,9 @@ class match_userprofilefield implements booking_rule_condition {
 
     /** @var string $optionfield */
     public $optionfield = null;
+
+    /** @var string $rulejson a json string for a booking rule */
+    public $rulejson = '';
 
     /**
      * Function to tell if a condition can be combined with a certain booking rule type.
@@ -84,19 +90,19 @@ class match_userprofilefield implements booking_rule_condition {
      * Only customizable functions need to return their necessary form elements.
      *
      * @param MoodleQuickForm $mform
-     * @param int $optionid
+     * @param ?array $ajaxformdata
      * @return void
      */
-    public function add_condition_to_mform(MoodleQuickForm &$mform, array &$ajaxformdata = null) {
+    public function add_condition_to_mform(MoodleQuickForm &$mform, ?array &$ajaxformdata = null) {
         global $DB;
 
         // Get a list of allowed option fields to compare with custom user profile field.
         // Currently we only use fields containing VARCHAR in DB.
         $allowedoptionfields = [
             '0' => get_string('choose...', 'mod_booking'),
-            'text' => get_string('rule_optionfield_text', 'mod_booking'),
-            'location' => get_string('rule_optionfield_location', 'mod_booking'),
-            'address' => get_string('rule_optionfield_address', 'mod_booking')
+            'text' => get_string('ruleoptionfieldtext', 'mod_booking'),
+            'location' => get_string('ruleoptionfieldlocation', 'mod_booking'),
+            'address' => get_string('ruleoptionfieldaddress', 'mod_booking'),
         ];
 
         // Custom user profile field to be checked.
@@ -111,17 +117,17 @@ class match_userprofilefield implements booking_rule_condition {
             }
 
             $mform->addElement('select', 'condition_match_userprofilefield_cpfield',
-                get_string('rule_customprofilefield', 'mod_booking'), $customuserprofilefieldsarray);
+                get_string('rulecustomprofilefield', 'mod_booking'), $customuserprofilefieldsarray);
 
             $operators = [
                 '=' => get_string('equals', 'mod_booking'),
-                '~' => get_string('contains', 'mod_booking')
+                '~' => get_string('contains', 'mod_booking'),
             ];
             $mform->addElement('select', 'condition_match_userprofilefield_operator',
-                get_string('rule_operator', 'mod_booking'), $operators);
+                get_string('ruleoperator', 'mod_booking'), $operators);
 
             $mform->addElement('select', 'condition_match_userprofilefield_optionfield',
-                get_string('rule_optionfield', 'mod_booking'), $allowedoptionfields);
+                get_string('ruleoptionfield', 'mod_booking'), $allowedoptionfields);
 
         }
 
@@ -129,15 +135,18 @@ class match_userprofilefield implements booking_rule_condition {
 
     /**
      * Get the name of the rule.
+     *
+     * @param bool $localized
      * @return string the name of the rule
      */
     public function get_name_of_condition($localized = true) {
-        return $localized ? get_string($this->conditionname, 'mod_booking') : $this->conditionname;
+        return $localized ? get_string($this->conditionnamestringid, 'mod_booking') : $this->conditionname;
     }
 
     /**
      * Save the JSON for all sendmail_daysbefore rules defined in form.
-     * @param stdClass &$data form data reference
+     *
+     * @param stdClass $data form data reference
      */
     public function save_condition(stdClass &$data) {
         global $DB;
@@ -159,7 +168,7 @@ class match_userprofilefield implements booking_rule_condition {
 
     /**
      * Sets the rule defaults when loading the form.
-     * @param stdClass &$data reference to the default values
+     * @param stdClass $data reference to the default values
      * @param stdClass $record a record from booking_rules
      */
     public function set_defaults(stdClass &$data, stdClass $record) {
@@ -186,10 +195,12 @@ class match_userprofilefield implements booking_rule_condition {
         global $DB;
 
         $sqlcomparepart = "";
+
+        $concat = $DB->sql_concat("'%'", "bo.$this->optionfield", "'%'");
         switch ($this->operator) {
             case '~':
                 $sqlcomparepart = $DB->sql_compare_text("ud.data") .
-                    " LIKE CONCAT('%', bo." . $this->optionfield . ", '%')
+                    " LIKE $concat
                       AND bo." . $this->optionfield . " <> ''
                       AND bo." . $this->optionfield . " IS NOT NULL";
                 break;
@@ -208,8 +219,9 @@ class match_userprofilefield implements booking_rule_condition {
             $anduserid = "AND ud.userid = :userid2";
         }
 
+        $concat = $DB->sql_concat("bo.id", "'-'", "ud.userid");
         // We need the hack with uniqueid so we do not lose entries ...as the first column needs to be unique.
-        $sql->select = " CONCAT(bo.id, '-', ud.userid) uniqueid, " . $sql->select;
+        $sql->select = " $concat uniqueid, " . $sql->select;
         $sql->select .= ", ud.userid userid ";
 
         $sql->from .= " JOIN {user_info_data} ud ON $sqlcomparepart ";

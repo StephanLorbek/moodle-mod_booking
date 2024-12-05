@@ -23,76 +23,145 @@ use stdClass;
  *
  * @package mod_booking
  * @copyright 2021 Wunderbyte GmbH <info@wunderbyte.at>
- * @author 2014 Andraž Prinčič
+ * @author Andraž Prinčič
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class booking_tags {
 
+    /**
+     * $tags
+     *
+     * @var array
+     */
     public $tags;
 
+    /**
+     * $replaces
+     *
+     * @var array
+     */
     public $replaces;
 
-    public $optiontextfields = array('text', 'description', 'location', 'institution', 'address',
-            'beforebookedtext', 'beforecompletedtext', 'aftercompletedtext');
+    /**
+     * $optiontextfields
+     *
+     * @var array
+     */
+    public $optiontextfields = ['text', 'description', 'location', 'institution', 'address',
+                                'beforebookedtext', 'beforecompletedtext', 'aftercompletedtext',
+                                ];
 
-    public $bookingtextfields = array('name', 'intro', 'bookingpolicy', 'bookedtext', 'notifyemail',
-            'waitingtext', 'statuschangetext', 'deletedtext', 'bookingchangedtext', 'duration', 'organizatorname',
-            'pollurltext', 'eventtype', 'notificationtext', 'userleave', 'pollurlteacherstext',
-            'beforebookedtext', 'beforecompletedtext', 'aftercompletedtext');
+    /**
+     * $bookingtextfields
+     *
+     * @var array
+     */
+    public $bookingtextfields = ['name', 'intro', 'bookingpolicy', 'bookedtext', 'notifyemail',
+                                'waitingtext', 'statuschangetext', 'deletedtext', 'bookingchangedtext', 'duration',
+                                'organizatorname', 'pollurltext', 'eventtype', 'notificationtext', 'userleave',
+                                'pollurlteacherstext', 'beforebookedtext', 'beforecompletedtext', 'aftercompletedtext',
+                                ];
 
+    /**
+     * $option
+     *
+     * @var mixed
+     */
     private $option;
 
     /**
      * Booking_tags constructor.
      *
-     * @param integer $courseid
+     * @param int $courseid
      * @throws \dml_exception
      */
     public function __construct($courseid) {
         global $DB;
 
-        $this->tags = $DB->get_records('booking_tags', array('courseid' => $courseid));
+        $this->tags = $DB->get_records('booking_tags', ['courseid' => $courseid]);
         $this->replaces = $this->prepare_replaces();
     }
 
+    /**
+     * Get all tags
+     *
+     * @return array
+     *
+     */
     public function get_all_tags() {
         return $this->tags;
     }
 
-    private function prepare_replaces() {
-        $keys = array();
-        $values = array();
+    /**
+     * Prepare replaces
+     *
+     * @return array
+     *
+     */
+    private function prepare_replaces(): array {
+        $keys = [];
+        $values = [];
 
         foreach ($this->tags as $tag) {
             $keys[] = "[{$tag->tag}]";
             $values[] = $tag->text;
         }
 
-        return array('keys' => $keys, 'values' => $values);
+        return ['keys' => $keys, 'values' => $values];
     }
 
-    public function get_replaces() {
+    /**
+     * Get replaces
+     *
+     * @return array
+     *
+     */
+    public function get_replaces(): array {
         return $this->replaces;
     }
 
+    /**
+     * Tag replaces
+     *
+     * @param mixed $text
+     *
+     * @return mixed
+     *
+     */
     public function tag_replaces($text) {
         return str_replace($this->replaces['keys'], $this->replaces['values'], $text);
     }
 
-    public function booking_replace(stdClass $settings = null): stdClass {
+    /**
+     * Booking replace
+     *
+     * @param stdClass|null $settings
+     *
+     * @return stdClass
+     *
+     */
+    public function booking_replace(?stdClass $settings = null): stdClass {
         $newsettings = clone $settings;
         foreach ($newsettings as $key => $value) {
-            if (in_array($key, $this->bookingtextfields)) {
+            if (in_array($key, $this->bookingtextfields) && (!is_null($newsettings->{$key}))) {
                 $newsettings->{$key} = $this->tag_replaces($newsettings->{$key});
             }
         }
         return $newsettings;
     }
 
-    public function option_replace(stdClass $optionsettings = null): stdClass {
+    /**
+     * Option replace
+     *
+     * @param stdClass|null $optionsettings
+     *
+     * @return stdClass
+     *
+     */
+    public function option_replace(?stdClass $optionsettings = null): stdClass {
         $newoptionsettings = clone $optionsettings;
         foreach ($newoptionsettings as $key => $value) {
-            if (in_array($key, $this->optiontextfields)) {
+            if (in_array($key, $this->optiontextfields) && (!is_null($newoptionsettings->{$key}))) {
                 $newoptionsettings->{$key} = $this->tag_replaces($newoptionsettings->{$key});
             }
         }

@@ -24,8 +24,10 @@
 
 namespace mod_booking\bo_availability\conditions;
 
+use local_shopping_cart\shopping_cart;
 use mod_booking\bo_availability\bo_condition;
 use mod_booking\bo_availability\bo_info;
+use mod_booking\booking;
 use mod_booking\booking_option;
 use mod_booking\booking_option_settings;
 use mod_booking\price;
@@ -49,7 +51,20 @@ require_once($CFG->dirroot . '/mod/booking/lib.php');
 class cancelmyself implements bo_condition {
 
     /** @var int $id Standard Conditions have hardcoded ids. */
-    public $id = BO_COND_CANCELMYSELF;
+    public $id = MOD_BOOKING_BO_COND_CANCELMYSELF;
+
+    /** @var bool $overwrittenbybillboard Indicates if the condition can be overwritten by the billboard. */
+    public $overwrittenbybillboard = false;
+
+    /**
+     * Get the condition id.
+     *
+     * @return int
+     *
+     */
+    public function get_id(): int {
+        return $this->id;
+    }
 
     /**
      * Needed to see if class can take JSON.
@@ -75,9 +90,7 @@ class cancelmyself implements bo_condition {
      * @param bool $not Set true if we are inverting the condition
      * @return bool True if available
      */
-    public function is_available(booking_option_settings $settings, $userid, $not = false):bool {
-
-        global $DB;
+    public function is_available(booking_option_settings $settings, int $userid, bool $not = false): bool {
 
         $optionid = $settings->id;
         $now = time();
@@ -85,26 +98,80 @@ class cancelmyself implements bo_condition {
         // This is the return value. Not available to begin with.
         $isavailable = false;
 
+        // If cancelling was disabled in the booking option or for the whole instance...
+        // ...then we do not show the cancel button.
+        if (booking_option::get_value_of_json_by_key($optionid, 'disablecancel')
+            || booking::get_value_of_json_by_key($settings->bookingid, 'disablecancel')) {
+            return true;
+        }
+
+        // Check if the option has its own canceluntil date and if it has already passed.
+        $now = time();
+        $canceluntil = booking_option::get_value_of_json_by_key($optionid, 'canceluntil');
+        if (!empty($canceluntil) && $now > $canceluntil) {
+            return true;
+        }
+
         // Get the booking answers for this instance.
         $bookinganswer = singleton_service::get_instance_of_booking_answers($settings);
 
         $bookinginformation = $bookinganswer->return_all_booking_information($userid);
-        $bosettings = singleton_service::get_instance_of_booking_settings_by_cmid($settings->cmid);
+        $bookingsettings = singleton_service::get_instance_of_booking_settings_by_cmid($settings->cmid);
 
-        $priceitems = price::get_prices_from_cache_or_db('option', $settings->id);
-        if (count($priceitems) > 0) {
+        if (!empty($settings->jsonobject->useprice) && (!class_exists('local_shopping_cart\shopping_cart'))) {
             // If we have a price, this condition is not used.
             $isavailable = true; // True means, it won't be shown.
         } else {
             // If the user is not allowed to cancel we never show cancel button.
-            if ($bosettings->cancancelbook != 1 || isset($bookinginformation['notbooked'])) {
+            if (!empty($bookingsettings->iselective) && isset($bookinginformation['iamreserved'])) {
+                $isavailable = false;
+            } else if (isset($bookinginformation['iamreserved'])) {
+                $isavailable = true;
+            } else if ($bookingsettings->cancancelbook != 1 || isset($bookinginformation['notbooked'])) {
                 $isavailable = true; // True means cancel button is not shown.
             } else if (isset($bookinginformation['onwaitinglist']) || isset($bookinginformation['iambooked'])) {
                 // If the user is allowed to cancel, we first check if the user is already booked or on the waiting list.
                 // We have to check if there's a limit until a certain date.
                 $canceluntil = booking_option::return_cancel_until_date($optionid);
                 // If the cancel until date has passed, we do not show cancel button.
-                if ($canceluntil != 0 && $now > $canceluntil) {
+                if (class_exists('local_shopping_cart\shopping_cart')
+                    && (!empty($settings->jsonobject->useprice))) {
+                    $item = (object)[
+                        'itemid' => $settings->id,
+                        'componentname' => 'mod_booking',
+                        'canceluntil' => $canceluntil,
+                    ];
+                    // Shopping cart allows to cancel.
+                    if (!shopping_cart::allowed_to_cancel_for_item($item, 'option')) {
+                        $isavailable = true;
+                    }
+
+                    // If user is confirmed, we don't block.
+                    if (isset($bookinginformation['onwaitinglist'])) {
+
+                        // We don't show cancel when we don't ask for confirmation and it's not fully booked.
+                        if (empty($settings->waitforconfirmation)
+                            && $bookinginformation['onwaitinglist']['fullybooked'] === false) {
+                            $isavailable = true;
+                        } else {
+                            $ba = $bookinganswer->usersonwaitinglist[$userid];
+                            if (!empty($ba->json)) {
+                                $jsonobject = json_decode($ba->json);
+                                if (!empty($jsonobject->confirmwaitinglist)) {
+                                    $isavailable = true;
+                                }
+                            }
+                        }
+                    }
+
+                }
+
+                if (!empty($canceluntil) && $now > $canceluntil) {
+                    // Don't display cancel button.
+                    $isavailable = true;
+                }
+
+                if (self::apply_coolingoff_period($settings, $userid)) {
                     $isavailable = true;
                 }
             }
@@ -119,6 +186,18 @@ class cancelmyself implements bo_condition {
     }
 
     /**
+     * Each function can return additional sql.
+     * This will be used if the conditions should not only block booking...
+     * ... but actually hide the conditons alltogether.
+     *
+     * @return array
+     */
+    public function return_sql(): array {
+
+        return ['', '', '', [], ''];
+    }
+
+    /**
      * The hard block is complementary to the is_available check.
      * While is_available is used to build eg also the prebooking modals and...
      * ... introduces eg the booking policy or the subbooking page, the hard block is meant to prevent ...
@@ -127,11 +206,11 @@ class cancelmyself implements bo_condition {
      * ... as they are not necessary, but return true when the booking policy is not yet answered.
      * Hard block is only checked if is_available already returns false.
      *
-     * @param booking_option_settings $booking_option_settings
-     * @param integer $userid
-     * @return boolean
+     * @param booking_option_settings $settings
+     * @param int $userid
+     * @return bool
      */
-    public function hard_block(booking_option_settings $settings, $userid):bool {
+    public function hard_block(booking_option_settings $settings, $userid): bool {
         return true;
     }
 
@@ -145,22 +224,25 @@ class cancelmyself implements bo_condition {
      * (when displaying all information about the activity) and 'student' cases
      * (when displaying only conditions they don't meet).
      *
-     * @param bool $full Set true if this is the 'full information' view
      * @param booking_option_settings $settings Item we're checking
      * @param int $userid User ID to check availability for
+     * @param bool $full Set true if this is the 'full information' view
      * @param bool $not Set true if we are inverting the condition
      * @return array availability and Information string (for admin) about all restrictions on
      *   this item
      */
-    public function get_description(booking_option_settings $settings, $userid = null, $full = false, $not = false):array {
+    public function get_description(booking_option_settings $settings, $userid = null, $full = false, $not = false): array {
 
         $description = '';
 
         $isavailable = $this->is_available($settings, $userid, $not);
+        if (!class_exists('local_shopping_cart\shopping_cart')) {
+            $description = $this->get_description_string($isavailable, $full, $settings);
+        } else {
+            $description = 'sc cancel';
+        }
 
-        $description = $this->get_description_string($isavailable, $full);
-
-        return [$isavailable, $description, BO_PREPAGE_NONE, BO_BUTTON_CANCEL];
+        return [$isavailable, $description, MOD_BOOKING_BO_PREPAGE_NONE, MOD_BOOKING_BO_BUTTON_CANCEL];
     }
 
     /**
@@ -179,10 +261,11 @@ class cancelmyself implements bo_condition {
      * Not all bo_conditions need to take advantage of this. But eg a condition which requires...
      * ... the acceptance of a booking policy would render the policy with this function.
      *
-     * @param integer $optionid
+     * @param int $optionid
+     * @param int $userid optional user id
      * @return array
      */
-    public function render_page(int $optionid) {
+    public function render_page(int $optionid, int $userid = 0) {
         return [];
     }
 
@@ -196,29 +279,78 @@ class cancelmyself implements bo_condition {
      * @param int $userid
      * @param bool $full
      * @param bool $not
+     * @param bool $fullwidth
      * @return array
      */
-    public function render_button(booking_option_settings $settings,
-        int $userid = 0, bool $full = false, bool $not = false, bool $fullwidth = true): array {
+    public function render_button(
+        booking_option_settings $settings,
+        int $userid = 0,
+        bool $full = false,
+        bool $not = false,
+        bool $fullwidth = true
+    ): array {
 
-        global $USER;
+        global $USER, $PAGE;
         if ($userid === null) {
             $userid = $USER->id;
         }
-        $label = $this->get_description_string(false, $full);
 
-        return bo_info::render_button($settings, $userid, $label, 'btn btn-secondary w-auto ml-1', false, $fullwidth,
-            'button', 'option', false);
+        // At this point, we need some logic, because we have a different button for ...
+        // ... purchases and just normal bookings.
+        if (class_exists('local_shopping_cart\shopping_cart')
+            && !empty($settings->jsonobject->useprice)) {
+
+            // Get the booking answers for this instance.
+            $bookinganswer = singleton_service::get_instance_of_booking_answers($settings);
+            $bookinginformation = $bookinganswer->return_all_booking_information($userid);
+
+            if (!isset($bookinginformation['onwaitinglist'])
+                && !isset($bookinginformation['iambooked']['paidwithcredits'])) {
+                $label = get_string('cancelsign', 'mod_booking')
+                . "&nbsp;" . get_string('cancelpurchase', 'local_shopping_cart');
+
+                return bo_info::render_button($settings, $userid, $label,
+                    'btn btn-light btn-sm shopping-cart-cancel-button',
+                    false, $fullwidth, 'button', 'option', false);
+            }
+        }
+
+        $label = $this->get_description_string();
+            return bo_info::render_button($settings, $userid, $label,
+                'btn btn-light btn-sm',
+                false, $fullwidth, 'button', 'option', false);
+
     }
 
     /**
      * Helper function to return localized description strings.
      *
-     * @param bool $isavailable
-     * @param bool $full
      * @return string
      */
-    private function get_description_string($isavailable, $full) {
-        return get_string('cancel', 'mod_booking');
+    private function get_description_string() {
+
+        // Do not trigger billboard here.
+        return get_string('cancelsign', 'mod_booking') . "&nbsp;" .
+            get_string('cancelmyself', 'mod_booking');
+    }
+
+    /**
+     * Returns false if we are still within the coolingoff period
+     * @param booking_option_settings $settings
+     * @param int $userid
+     * @return bool
+     */
+    public static function apply_coolingoff_period($settings, $userid) {
+
+        $coolingoffperiod = get_config('booking', 'coolingoffperiod');
+        if ($coolingoffperiod > 0) {
+
+            $ba = singleton_service::get_instance_of_booking_answers($settings);
+            $timemodified = $ba->users[$userid]->timemodified ?? 0;
+            if (strtotime("+ $coolingoffperiod seconds", $timemodified) > time()) {
+                return true;
+            }
+        }
+        return false;
     }
 }

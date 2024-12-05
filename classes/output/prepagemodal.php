@@ -61,24 +61,27 @@ class prepagemodal implements renderable, templatable {
     /**
      * Constructor
      *
-     * @param integer $optionid
-     * @param integer $totalnumberofpages
+     * @param mixed $settings
+     * @param int $totalnumberofpages
      * @param string $buttoncondition
      * @param string $extrabuttoncondition
-     * @param integer $userid
+     * @param int $userid
      */
     public function __construct(
             $settings,
             int $totalnumberofpages,
             string $buttoncondition,
-            string $extrabuttoncondition,
+            string $extrabuttoncondition = '',
             int $userid = 0) {
 
         global $PAGE;
 
         $context = context_module::instance($settings->cmid);
 
-        $PAGE->set_context($context);
+        // Verification required to avoid error like "unsupported modification of PAGE->context from xx to yy".
+        if (!isset($PAGE->context->contextlevel)) {
+            $PAGE->set_context($context);
+        }
 
         if (has_capability('mod/booking:bookforothers', $context)) {
             $full = true;
@@ -96,8 +99,10 @@ class prepagemodal implements renderable, templatable {
         if (!empty($extrabuttoncondition)) {
             $extracondition = new $extrabuttoncondition();
             list($extratemplate, $extradata) = $extracondition->render_button($settings, $userid, $full);
-
-            $extradata['top'] = $data['main'];
+            if (!empty($data['main']) || $full) { // Full means has capability "bookforothers" & therefore 2 areas: top & main.
+                $extradata['top'] = $extradata["main"];
+                $extradata['main'] = $data['main'] ?? [];
+            }
             $data = $extradata;
         }
 

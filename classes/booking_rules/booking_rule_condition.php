@@ -52,28 +52,28 @@ interface booking_rule_condition {
     /**
      * Adds the form elements for this rule condition to the provided mform.
      * @param MoodleQuickForm $mform the mform where the rule condition should be added
-     * @param array $ajaxformdata
+     * @param ?array $ajaxformdata
      * @return void
      */
-    public function add_condition_to_mform(MoodleQuickForm &$mform, array &$ajaxformdata = null);
+    public function add_condition_to_mform(MoodleQuickForm &$mform, ?array &$ajaxformdata = null);
 
     /**
      * Gets the human-readable name of a rule condition (localized).
-     * @param boolean $localized
+     * @param bool $localized
      * @return string the name of the rule condition
      */
     public function get_name_of_condition($localized = true);
 
     /**
      * Gets the JSON for the rule condition to be stored in DB.
-     * @param stdClass &$data form data reference
+     * @param stdClass $data form data reference
      * @return string the json for the rule condition
      */
     public function save_condition(stdClass &$data);
 
     /**
      * Sets the rule condition defaults when loading the form.
-     * @param stdClass &$data reference to the default values
+     * @param stdClass $data reference to the default values
      * @param stdClass $record a record from booking_rules
      */
     public function set_defaults(stdClass &$data, stdClass $record);

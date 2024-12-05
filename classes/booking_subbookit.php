@@ -14,6 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * Handling the booking process for subbookings.
+ *
+ * @package mod_booking
+ * @copyright 2022 Wunderbyte GmbH <info@wunderbyte.at>
+ * @author Georg Maißer
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace mod_booking;
 
 use context_module;
@@ -21,6 +30,7 @@ use context_system;
 use mod_booking\bo_availability\bo_subinfo;
 use mod_booking\output\bookingoption_description;
 use mod_booking\output\bookit_button;
+use mod_booking\output\renderer;
 use mod_booking\subbookings\subbookings_info;
 use moodle_exception;
 
@@ -30,6 +40,7 @@ require_once($CFG->dirroot . '/mod/booking/lib.php');
 
 /**
  * Class for handling the booking process for subbookings.
+ *
  * In the most simple case, this class provides a button for a user to book a subbooking option.
  * But this class handles the process, together with bo_conditions, prices and further functionalities...
  * ... as an integrative process.
@@ -49,8 +60,8 @@ class booking_subbookit {
      * This also includes a top and a bottom section which can be rendered seperately.
      *
      * @param booking_option_settings $settings
-     * @param integer $subbookingid
-     * @param integer $userid
+     * @param int $subbookingid
+     * @param int $userid
      * @return string
      */
     public static function render_bookit_button(booking_option_settings $settings, int $subbookingid, int $userid = 0) {
@@ -76,8 +87,8 @@ class booking_subbookit {
      * This is used to get template name & data as an array to render bookit-button (component).
      *
      * @param booking_option_settings $settings
-     * @param integer $subbookingid
-     * @param integer $userid
+     * @param int $subbookingid
+     * @param int $userid
      * @param bool $renderprepagemodal
      * @return array
      */
@@ -97,10 +108,10 @@ class booking_subbookit {
         foreach ($results as $result) {
 
             switch ($result['button'] ) {
-                case BO_BUTTON_MYBUTTON:
+                case MOD_BOOKING_BO_BUTTON_MYBUTTON:
                     $buttoncondition = $result['classname'];
                     break;
-                case BO_BUTTON_MYALERT;
+                case MOD_BOOKING_BO_BUTTON_MYALERT;
                     // Here we could use a more sophisticated way of rights management.
                     // Right now, the logic is just linked to one right.
                     $context = context_module::instance(($settings->cmid));
@@ -111,7 +122,7 @@ class booking_subbookit {
                         $buttoncondition = $result['classname'];
                     }
                     break;
-                case BO_BUTTON_JUSTMYALERT:
+                case MOD_BOOKING_BO_BUTTON_JUSTMYALERT:
                     // The JUST MY ALERT prevents other buttons to be displayed.
                     $justmyalert = true;
                     $buttoncondition = $result['classname'];
@@ -151,8 +162,8 @@ class booking_subbookit {
      * Handles booking via the webservice. Checks access and right area to execute functions.
      *
      * @param string $area
-     * @param integer $itemid
-     * @param integer $userid
+     * @param int $itemid
+     * @param int $userid
      * @return array
      */
     public static function bookit(string $area, int $itemid, int $userid = 0) {
@@ -170,7 +181,7 @@ class booking_subbookit {
         if (strpos($area, 'subbooking') === 0) {
             // As a subbooking can have different slots, we use the area to provide the subbooking id.
             // The syntax is "subbooking-1" for the subbooking id 1.
-            return self::answer_subbooking_option($area, $itemid, STATUSPARAM_BOOKED, $userid);
+            return self::answer_subbooking_option($area, $itemid, MOD_BOOKING_STATUSPARAM_BOOKED, $userid);
         } else {
             return [
                 'status' => 0,
@@ -183,12 +194,12 @@ class booking_subbookit {
      * Helper function to create cartitem for optionid.
      *
      * @param string $area
-     * @param integer $itemid
-     * @param integer $status
-     * @param integer $userid
+     * @param int $itemid
+     * @param int $status
+     * @param int $userid
      * @return array
      */
-    public static function answer_booking_option(string $area, int $itemid, int $status, int $userid = 0):array {
+    public static function answer_booking_option(string $area, int $itemid, int $status, int $userid = 0): array {
 
         global $PAGE, $USER;
 
@@ -223,27 +234,27 @@ class booking_subbookit {
 
         // Now we reserve the place for the user.
         switch ($status) {
-            case STATUSPARAM_BOOKED:
-                if (!$bookingoption->user_submit_response($user, 0, 0, false, true)) {
+            case MOD_BOOKING_STATUSPARAM_BOOKED:
+                if (!$bookingoption->user_submit_response($user, 0, 0, 0, MOD_BOOKING_VERIFIED)) {
                     return [];
                 }
                 break;
-            case STATUSPARAM_RESERVED:
-                if (!$bookingoption->user_submit_response($user, 0, 0, true, true)) {
+            case MOD_BOOKING_STATUSPARAM_RESERVED:
+                if (!$bookingoption->user_submit_response($user, 0, 0, 1, MOD_BOOKING_VERIFIED)) {
                     return [];
                 }
                 break;
-            case STATUSPARAM_NOTBOOKED:
+            case MOD_BOOKING_STATUSPARAM_NOTBOOKED:
                 if (!$bookingoption->user_delete_response($user->id, true)) {
                     return [];
                 }
                 break;
-            case STATUSPARAM_DELETED:
+            case MOD_BOOKING_STATUSPARAM_DELETED:
                 if (!$bookingoption->user_delete_response($user->id)) {
                     return [];
                 }
                 break;
-            case STATUSPARAM_NOTIFYMELIST:
+            case MOD_BOOKING_STATUSPARAM_NOTIFYMELIST:
                 if (!$bookingoption::toggle_notify_user($user->id, $itemid)) {
                     return [];
                 }
@@ -253,14 +264,14 @@ class booking_subbookit {
         // We need to register this action as a booking answer, where we only reserve, not actually book.
 
         $user = singleton_service::get_instance_of_user($userid);
-        $booking = singleton_service::get_instance_of_booking_by_optionid($itemid);
+        $booking = singleton_service::get_instance_of_booking_by_bookingid($settings->bookingid);
 
-        if (!isset($PAGE->context)) {
-            $PAGE->set_context(context_module::instance($booking->cmid));
-        }
+        // With shortcodes & webservice we might not have a valid context object.
+        booking_context_helper::fix_booking_page_context($PAGE, $booking->cmid);
 
+        /** @var renderer $output */
         $output = $PAGE->get_renderer('mod_booking');
-        $data = new bookingoption_description($itemid, null, DESCRIPTION_WEBSITE, false, null, $user);
+        $data = new bookingoption_description($itemid, null, MOD_BOOKING_DESCRIPTION_WEBSITE, false, null, $user);
         $description = $output->render_bookingoption_description_cartitem($data);
 
         $optiontitle = $bookingoption->option->text;
@@ -289,12 +300,12 @@ class booking_subbookit {
      * Helper function to create cartitem for subbooking.
      *
      * @param string $area
-     * @param integer $itemid
-     * @param integer $status
-     * @param integer $userid
+     * @param int $itemid
+     * @param int $status
+     * @param int $userid
      * @return array
      */
-    public static function answer_subbooking_option(string $area, int $itemid, int $status, int $userid = 0):array {
+    public static function answer_subbooking_option(string $area, int $itemid, int $status, int $userid = 0): array {
 
         $subbooking = subbookings_info::get_subbooking_by_area_and_id($area, $itemid);
 

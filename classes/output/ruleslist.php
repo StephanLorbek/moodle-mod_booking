@@ -24,6 +24,7 @@
 
 namespace mod_booking\output;
 
+use coding_exception;
 use renderer_base;
 use renderable;
 use templatable;
@@ -40,12 +41,21 @@ class ruleslist implements renderable, templatable {
     /** @var array $rules */
     public $rules = [];
 
+    /** @var int $contextid */
+    public $contextid = 1;
+
+    /** @var bool $enableaddbutton */
+    public $enableaddbutton = true;
+
     /**
      * Constructor takes the rules to render and saves them as array.
-     *
      * @param array $rules
+     * @param int $contextid
+     * @param bool $enableaddbutton
+     * @return void
+     * @throws coding_exception
      */
-    public function __construct(array $rules) {
+    public function __construct(array $rules, int $contextid, bool $enableaddbutton = true) {
 
         foreach ($rules as $rule) {
 
@@ -54,17 +64,29 @@ class ruleslist implements renderable, templatable {
             $rule->actionname = $ruleobj->actionname;
             $rule->conditionname = $ruleobj->conditionname;
             // Localize the names.
-            $rule->localizedrulename = get_string($rule->rulename, 'mod_booking');
-            $rule->localizedactionname = get_string($ruleobj->actionname, 'mod_booking');
-            $rule->localizedconditionname = get_string($ruleobj->conditionname, 'mod_booking');
+            $rule->localizedrulename = get_string(str_replace("_", "", $rule->rulename), 'mod_booking');
+            $rule->localizedactionname = get_string(str_replace("_", "", $ruleobj->actionname), 'mod_booking');
+            $rule->localizedconditionname = get_string(str_replace("_", "", $ruleobj->conditionname), 'mod_booking');
 
             $this->rules[] = (array)$rule;
         }
+        $this->contextid = $contextid;
+        $this->enableaddbutton = $enableaddbutton;
     }
 
+    /**
+     * Export for template
+     *
+     * @param renderer_base $output
+     *
+     * @return array
+     *
+     */
     public function export_for_template(renderer_base $output) {
-        return array(
-                'rules' => $this->rules
-        );
+        return [
+                'rules' => $this->rules,
+                'contextid' => $this->contextid,
+                'enableaddbutton' => $this->enableaddbutton,
+        ];
     }
 }

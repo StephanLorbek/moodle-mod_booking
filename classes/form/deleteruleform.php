@@ -58,7 +58,7 @@ class deleteruleform extends dynamic_form {
         }
 
         $mform->addElement('html', '<div><p>'
-            . get_string('deletebookingrule_confirmtext', 'mod_booking')
+            . get_string('deletebookingruleconfirmtext', 'mod_booking')
             . '</p><p class="text-danger font-weight-bold">'
             . $ajaxformdata['name']
             . '</p></div>');
@@ -89,10 +89,12 @@ class deleteruleform extends dynamic_form {
     }
 
     /**
-     * Validate dates.
+     * Form validation.
      *
-     * {@inheritdoc}
-     * @see moodleform::validation()
+     * @param array $data
+     * @param array $files
+     * @return array
+     *
      */
     public function validation($data, $files) {
         $errors = [];

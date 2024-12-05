@@ -13,12 +13,28 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Handle option templates settings table.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace mod_booking\table;
 
 use moodle_url;
 use table_sql;
 use html_writer;
 
+/**
+ * Class to handle option templates settings table.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 class optiontemplatessettings_table extends table_sql {
 
     /**
@@ -34,8 +50,8 @@ class optiontemplatessettings_table extends table_sql {
     /**
      * optiontemplatessettings_table constructor.
      *
-     * @param $uniqueid
-     * @param $cmid
+     * @param string $uniqueid
+     * @param int $cmid
      * @throws \coding_exception
      */
     public function __construct($uniqueid, $cmid) {
@@ -45,19 +61,21 @@ class optiontemplatessettings_table extends table_sql {
         $this->bookinginstances = $DB->get_records_select('booking', 'templateid > 0', [], '', 'id, name, templateid');
 
         // Define the list of columns to show.
-        $columns = array('name', 'options', 'action');
+        $columns = ['name', 'options', 'action'];
         $this->define_columns($columns);
 
         // Define the titles of columns to show in header.
-        $headers = array(get_string('optiontemplatename', 'mod_booking'), get_string('usedinbookinginstances', 'mod_booking'),
-            get_string('action'));
+        $headers = [get_string('optiontemplatename', 'mod_booking'),
+                    get_string('usedinbookinginstances', 'mod_booking'),
+                    get_string('action'),
+                    ];
         $this->define_headers($headers);
     }
 
     /**
      * Display the booking instances where template is used.
      *
-     * @param $values
+     * @param object $values
      * @return string
      */
     public function col_options($values) {
@@ -83,7 +101,7 @@ class optiontemplatessettings_table extends table_sql {
     /**
      * Display actions for the templates (delete or edit)
      *
-     * @param $values
+     * @param object $values
      * @return string
      * @throws \coding_exception
      * @throws \moodle_exception
@@ -93,10 +111,19 @@ class optiontemplatessettings_table extends table_sql {
         $output = '';
         $delete = get_string('delete');
         $url = new moodle_url('/mod/booking/optiontemplatessettings.php',
-            array('optionid' => $values->optionid, 'action' => 'delete', 'id' => $this->cmid));
+            ['optionid' => $values->optionid, 'action' => 'delete', 'id' => $this->cmid]);
         $output .= $OUTPUT->single_button($url, $delete, 'get');
         $edit = get_string('edit');
-        $url = new moodle_url('/mod/booking/edit_optiontemplates.php', array('optionid' => $values->optionid, 'id' => $this->cmid));
+        $returnurl = new moodle_url('/mod/booking/optiontemplatessettings.php', ['id' => $this->cmid]);
+        $url = new moodle_url(
+            '/mod/booking/editoptions.php',
+            [
+            'optionid' => $values->optionid,
+            'id' => $this->cmid,
+            'addastemplate' => '1',
+            'returnurl' => $returnurl->out(),
+            ]
+        );
         $output .= $OUTPUT->single_button($url, $edit, 'get');
         return $output;
     }

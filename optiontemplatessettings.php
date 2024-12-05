@@ -38,10 +38,11 @@ require_course_login($course, false, $cm);
 // In Moodle 4.0+ we want to turn the instance description off on every page except view.php.
 $PAGE->activityheader->disable();
 
-$pageurl = new moodle_url('/mod/booking/optiontemplatessettings.php',  array('id' => $id, 'optionid' => $optionid));
+$pageurl = new moodle_url('/mod/booking/optiontemplatessettings.php',  ['id' => $id, 'optionid' => $optionid]);
 
 if (($action === 'delete') && ($optionid > 0)) {
-    $DB->delete_records('booking_options', array('id' => $optionid));
+    $DB->delete_records('booking_options', ['id' => $optionid]);
+    $pageurl->remove_params('optionid');
     redirect($pageurl, get_string('templatedeleted', 'booking'), 5);
 }
 

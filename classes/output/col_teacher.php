@@ -47,15 +47,22 @@ class col_teacher implements renderable, templatable {
     /**
      * Constructor
      *
-     * @param integer $optionid
+     * @param int $optionid
      * @param booking_option_settings $settings
      */
     public function __construct(int $optionid, booking_option_settings $settings) {
 
+        $addlink = get_config('booking', 'teacherslinkonteacher');
+
         foreach ($settings->teachers as $teacher) {
             // Set URL for each teacher.
-            $teacherurl = new moodle_url('/mod/booking/teacher.php', ['teacherid' => $teacher->userid]);
-            $teacher->teacherurl = $teacherurl->out(false);
+            if (!empty($addlink)) {
+                $teacherurl = new moodle_url('/mod/booking/teacher.php', ['teacherid' => $teacher->userid]);
+                $teacher->teacherurl = $teacherurl->out(false);
+            }
+
+            $teacher->description = format_text($teacher->description, $teacher->descriptionformat);
+
             $this->teachers[] = (array)$teacher;
         }
     }
@@ -67,8 +74,8 @@ class col_teacher implements renderable, templatable {
      */
     public function export_for_template(renderer_base $output) {
 
-        return array(
-            'teachers' => $this->teachers
-        );
+        return [
+            'teachers' => $this->teachers,
+        ];
     }
 }

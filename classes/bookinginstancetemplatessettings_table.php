@@ -27,6 +27,13 @@ namespace mod_booking;
 use moodle_url;
 use table_sql;
 
+/**
+ * Class to handle booking instance template settings table
+ *
+ * @package mod_booking
+ * @copyright 2021 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 class bookinginstancetemplatessettings_table extends table_sql {
 
     /**
@@ -37,8 +44,8 @@ class bookinginstancetemplatessettings_table extends table_sql {
     /**
      * bookinginstancetemplatessettings_table constructor.
      *
-     * @param $uniqueid
-     * @param $cmid
+     * @param string $uniqueid
+     * @param int $cmid
      * @throws \coding_exception
      */
     public function __construct($uniqueid, $cmid) {
@@ -47,18 +54,18 @@ class bookinginstancetemplatessettings_table extends table_sql {
         $this->cmid = $cmid;
 
         // Define the list of columns to show.
-        $columns = array('name', 'action');
+        $columns = ['name', 'action'];
         $this->define_columns($columns);
 
         // Define the titles of columns to show in header.
-        $headers = array(get_string('bookinginstancetemplatename', 'mod_booking'), get_string('action'));
+        $headers = [get_string('bookinginstancetemplatename', 'mod_booking'), get_string('action')];
         $this->define_headers($headers);
     }
 
     /**
      * Display the booking instances where template is used.
      *
-     * @param $values
+     * @param object $values
      * @return string
      */
     public function col_name($values) {
@@ -68,7 +75,7 @@ class bookinginstancetemplatessettings_table extends table_sql {
     /**
      * Display actions for the templates (delete or edit)
      *
-     * @param $values
+     * @param object $values
      * @return string
      * @throws \coding_exception
      * @throws \moodle_exception
@@ -78,7 +85,7 @@ class bookinginstancetemplatessettings_table extends table_sql {
         $output = '';
         $delete = get_string('delete');
         $url = new moodle_url('/mod/booking/bookinginstancetemplatessettings.php',
-            array('templateid' => $values->id, 'action' => 'delete', 'id' => $this->cmid));
+            ['templateid' => $values->id, 'action' => 'delete', 'id' => $this->cmid]);
         $output .= $OUTPUT->single_button($url, $delete, 'get');
         return $output;
     }

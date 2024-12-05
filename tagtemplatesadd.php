@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * Import options or just add new users from CSV
  *
@@ -20,7 +21,8 @@
  * @copyright 2014 Andraž Prinčič www.princic.net
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-require_once(__DIR__ . '/../../config.php');
+
+ require_once(__DIR__ . '/../../config.php');
 require_once("lib.php");
 require_once($CFG->dirroot . '/mod/booking/locallib.php');
 require_once('tagtemplatesadd_form.php');
@@ -28,8 +30,8 @@ require_once('tagtemplatesadd_form.php');
 $id = required_param('id', PARAM_INT); // Course Module ID.
 $tagid = optional_param('tagid', '', PARAM_INT);
 
-$url = new moodle_url('/mod/booking/tagtemplatesadd.php', array('id' => $id, 'tagid' => $tagid));
-$urlredirect = new moodle_url('/mod/booking/tagtemplates.php', array('id' => $id));
+$url = new moodle_url('/mod/booking/tagtemplatesadd.php', ['id' => $id, 'tagid' => $tagid]);
+$urlredirect = new moodle_url('/mod/booking/tagtemplates.php', ['id' => $id]);
 $PAGE->set_url($url);
 
 list($course, $cm) = get_course_and_cm_from_cmid($id);
@@ -81,10 +83,10 @@ if ($mform->is_cancelled()) {
 
     $defaultvalues = new stdClass();
     if ($tagid != '') {
-        $defaultvalues = $DB->get_record('booking_tags', array('id' => $tagid));
+        $defaultvalues = $DB->get_record('booking_tags', ['id' => $tagid]);
         $defaultvalues->tagid = $tagid;
         unset($defaultvalues->id);
-        $defaultvalues->text = array('text' => $defaultvalues->text, 'format' => FORMAT_HTML);
+        $defaultvalues->text = ['text' => $defaultvalues->text, 'format' => FORMAT_HTML];
     }
 
     // Processed if form is submitted but data not validated & form should be redisplayed OR first display of form.

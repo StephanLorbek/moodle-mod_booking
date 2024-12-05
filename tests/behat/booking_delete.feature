@@ -24,22 +24,48 @@ Feature: In a booking delete
       | activity | course | name       | intro                  | bookingmanager | eventtype | Default view for booking options |
       | booking  | C1     | My booking | My booking description | teacher1       | Webinar   | All bookings                     |
     And I create booking option "New option" in "My booking"
+    And I change viewport size to "1366x10000"
 
   @javascript
-  Scenario: Delete user from booking option
-    Given I log in as "teacher1"
-    When I am on "Course 1" course homepage
-    Then I follow "My booking"
-    And I follow "My booking"
-    And I click on "Settings" "icon" in the "#allbookingoptionstable_r1" "css_element"
-    And I click on "Book other users" "link" in the "#allbookingoptionstable_r1" "css_element"
+  Scenario: Delete booking option as teacher
+    Given I am on the "My booking" Activity page logged in as teacher1
+    And I click on "Settings" "icon" in the ".allbookingoptionstable_r1" "css_element"
+    And I click on "Delete this booking option" "link" in the ".allbookingoptionstable_r1" "css_element"
+    And I wait until the page is ready
+    And I should see "Do you really want to delete this booking option New option?"
+    And I click on "Continue" "button"
+    And I wait until the page is ready
+    And "//div[@id, 'allbookingoptionstable_r1']" "xpath_element" should not exist
+    And I log out
+    When I log in as "admin"
+    And I trigger cron
+    And I run all adhoc tasks
+    And I visit "/report/loglive/index.php"
+    Then I should see "Booking option deleted"
+    And I log out
+
+  @javascript
+  Scenario: Delete user from booking option as teacher
+    Given I am on the "My booking" Activity page logged in as teacher1
+    And I click on "Settings" "icon" in the ".allbookingoptionstable_r1" "css_element"
+    And I click on "Book other users" "link" in the ".allbookingoptionstable_r1" "css_element"
     And I click on "Student 1 (student1@example.com)" "text"
     And I click on "Student 2 (student2@example.com)" "text"
     And I click on "Add" "button"
     And I follow "<< Back to responses"
+    And I wait until the page is ready
+    And I should see "Student 1"
+    And I should see "Student 2"
     And I click on "selectall" "checkbox"
     And I click on "Delete responses" "button"
-    ## Next step(s) cause faiure:
-    ## Then I trigger cron
-    ## And I wait "1" seconds
-    ## And I run all adhoc tasks
+    And I should not see "Student 1"
+    And I should not see "Student 2"
+    When I log in as "admin"
+    And I trigger cron
+    And I run all adhoc tasks
+    And I visit "/report/loglive/index.php"
+    Then I should see "The user \"Teacher 1 (ID:"
+    And I should see "cancelled \"Student 1 (ID:"
+    And I should see "cancelled \"Student 2 (ID:"
+    And I should see "from \"New option (ID:"
+    And I log out

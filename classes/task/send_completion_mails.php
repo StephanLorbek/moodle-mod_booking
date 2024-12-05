@@ -13,6 +13,15 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Adhoc Task to send notification mails when the completion status of a user changes to complete.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace mod_booking\task;
 
 defined('MOODLE_INTERNAL') || die();
@@ -24,7 +33,11 @@ use mod_booking\message_controller;
 require_once($CFG->dirroot . '/mod/booking/lib.php');
 
 /**
- * Adhoc Task to send notification mails when the completion status of a user changes to complete.
+ * Class to handle adhoc Task to send notification mails when the completion status of a user changes to complete.
+ *
+ * @package mod_booking
+ * @copyright 2023 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class send_completion_mails extends \core\task\adhoc_task {
 
@@ -35,7 +48,7 @@ class send_completion_mails extends \core\task\adhoc_task {
      * @throws \coding_exception
      */
     public function get_name() {
-        return get_string('task_send_completion_mails', 'mod_booking');
+        return get_string('tasksendcompletionmails', 'mod_booking');
     }
 
     /**
@@ -56,7 +69,8 @@ class send_completion_mails extends \core\task\adhoc_task {
 
             // Use message controller to send the completion message.
             $messagecontroller = new message_controller(
-                MSGCONTRPARAM_SEND_NOW, MSGPARAM_COMPLETED, $taskdata->cmid, null, $taskdata->optionid, $taskdata->userid
+                MOD_BOOKING_MSGCONTRPARAM_SEND_NOW, MOD_BOOKING_MSGPARAM_COMPLETED,
+                $taskdata->cmid, $taskdata->optionid, $taskdata->userid, null
             );
 
             if ($messagecontroller->send_or_queue()) {

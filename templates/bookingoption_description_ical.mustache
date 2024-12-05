@@ -25,7 +25,6 @@
 
     Example context (json):
     {
-        "titleprefix" : "titleprefix",
         "location" : "location",
         "institution" : "institution",
         "address" : "address",
@@ -33,14 +32,8 @@
         "description" : "description",
         "booknowbutton" : "HTML booknowbutton",
         "teachers": [
-            {
-                "userid": "1006",
-                "firstname": "Maxima",
-                "lastname": "Yoga",
-                "email": "maxima.yoga@mailnotexisting.net",
-                "institution": "Institution",
-                "teacherurl": "url"
-            }
+            "Maxima Yoga",
+            "Teacher 1"
         ],
         "dates": [
             {
@@ -56,7 +49,7 @@
     }
 }}
 
-{{#titleprefix}}{{.}} - {{/titleprefix}}{{title}}
+{{{title}}}
 
 {{#dates}}
 - {{{datestring}}}
